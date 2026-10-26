@@ -291,4 +291,355 @@ export default function App() {
           <div className="bg-[#15191D] border border-white/15 rounded-2xl max-w-md w-full p-6 space-y-5 shadow-2xl">
             <div className="flex items-center justify-between border-b border-white/10 pb-4">
               <div className="flex items-center gap-2">
-                <div className="w-8 h-8 rounded
+                <div className="w-8 h-8 rounded-lg bg-[#B8F34A] flex items-center justify-center font-black text-black">FF</div>
+                <h3 className="text-lg font-black">{authMode === "login" ? "Sign In to FitForge" : "Create Account"}</h3>
+              </div>
+              <button onClick={() => setShowAuthModal(false)} className="text-gray-400 hover:text-white"><X className="w-5 h-5" /></button>
+            </div>
+
+            <form onSubmit={handleAuthSubmit} className="space-y-3 text-xs">
+              {authMode === "signup" && (
+                <div>
+                  <label className="block text-gray-400 mb-1">Full Name</label>
+                  <input 
+                    type="text" 
+                    placeholder="Maha"
+                    value={authFullName}
+                    onChange={(e) => setAuthFullName(e.target.value)}
+                    className="w-full px-3 py-2.5 rounded-xl bg-[#0B0D0F] border border-white/15 text-white" 
+                  />
+                </div>
+              )}
+              <div>
+                <label className="block text-gray-400 mb-1">Email Address</label>
+                <input 
+                  type="email" 
+                  required
+                  placeholder="name@example.tn"
+                  value={authEmail}
+                  onChange={(e) => setAuthEmail(e.target.value)}
+                  className="w-full px-3 py-2.5 rounded-xl bg-[#0B0D0F] border border-white/15 text-white" 
+                />
+              </div>
+              <div>
+                <label className="block text-gray-400 mb-1">Password</label>
+                <input 
+                  type="password" 
+                  required
+                  placeholder="••••••••"
+                  value={authPassword}
+                  onChange={(e) => setAuthPassword(e.target.value)}
+                  className="w-full px-3 py-2.5 rounded-xl bg-[#0B0D0F] border border-white/15 text-white" 
+                />
+              </div>
+
+              <button
+                type="submit"
+                className="w-full py-3 rounded-xl bg-[#B8F34A] text-black font-extrabold text-sm hover:brightness-110 transition mt-2"
+              >
+                {authMode === "login" ? "Sign In →" : "Register Account →"}
+              </button>
+
+              <div className="text-center pt-2">
+                <button
+                  type="button"
+                  onClick={() => setAuthMode(authMode === "login" ? "signup" : "login")}
+                  className="text-gray-400 hover:text-[#B8F34A] text-xs underline"
+                >
+                  {authMode === "login" ? "Need an account? Sign up" : "Already have an account? Sign in"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* SIDEBAR NAVIGATION */}
+      <aside className="hidden md:flex md:w-64 md:flex-col bg-[#15191D] border-r border-white/10 shrink-0">
+        <div className="p-5 flex items-center justify-between border-b border-white/10">
+          <div className="flex items-center gap-3">
+            <div className="w-9 h-9 rounded-xl bg-[#B8F34A] flex items-center justify-center font-black text-black">FF</div>
+            <div>
+              <div className="font-black text-sm tracking-tight text-white">FITFORGE</div>
+              <div className="text-[9px] text-[#B8F34A] uppercase tracking-widest font-bold">Training & Nutrition</div>
+            </div>
+          </div>
+        </div>
+
+        {/* PRO SUBSCRIPTION BOX (20 TND/MO) */}
+        <div className="p-4 m-3 rounded-2xl bg-gradient-to-br from-[#B8F34A]/20 via-[#15191D] to-[#0B0D0F] border border-[#B8F34A]/40 space-y-2.5">
+          <div className="flex items-center gap-2 text-[#B8F34A] font-extrabold text-xs">
+            <Crown className="w-4 h-4 fill-current" />
+            <span>FitForge PRO Member</span>
+          </div>
+          <p className="text-[11px] text-gray-300 leading-relaxed">
+            AI Coach, Cloud Sync & TND Market Optimizers.
+          </p>
+          <div className="text-xs font-black text-white">
+            20 TND <span className="text-[10px] font-normal text-gray-400">/ month</span>
+          </div>
+          <button
+            onClick={handleUpgradeToPro}
+            className={`w-full py-2 rounded-xl text-xs font-extrabold transition ${
+              isPremium
+                ? "bg-white/10 text-white border border-white/20"
+                : "bg-[#B8F34A] text-black hover:brightness-110"
+            }`}
+          >
+            {isPremium ? "✓ PRO Active" : "Upgrade for 20 TND/mo"}
+          </button>
+        </div>
+
+        <nav className="p-3 space-y-1 flex-1">
+          {[
+            { id: "dashboard", label: "Dashboard", icon: TrendingUp },
+            { id: "workouts", label: "Workout Planner", icon: Dumbbell },
+            { id: "exercises", label: "Exercise Videos", icon: Video },
+            { id: "nutrition", label: "Nutrition Calculator", icon: Flame },
+            { id: "meals", label: "Meal Planner & Log", icon: Utensils },
+            { id: "premium", label: "AI Coach & PRO Suite", icon: Crown, proOnly: true }
+          ].map((item) => {
+            const Icon = item.icon;
+            const active = activeTab === item.id;
+            return (
+              <button
+                key={item.id}
+                onClick={() => setActiveTab(item.id)}
+                className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-sm font-medium transition ${
+                  active
+                    ? "bg-[#B8F34A] text-black font-bold shadow-lg"
+                    : "text-gray-400 hover:text-white hover:bg-white/5"
+                }`}
+              >
+                <div className="flex items-center gap-3">
+                  <Icon className="w-4 h-4" />
+                  <span>{item.label}</span>
+                </div>
+                {item.proOnly && !isPremium && <Lock className="w-3.5 h-3.5 text-amber-400" />}
+              </button>
+            );
+          })}
+        </nav>
+
+        {/* AUTH FOOTER */}
+        <div className="p-4 m-3 rounded-xl bg-[#0B0D0F] border border-white/10 text-xs flex items-center justify-between">
+          <div className="truncate">
+            <div className="font-bold text-white truncate">{user ? user.email : "Guest Mode"}</div>
+            <div className="text-[10px] text-[#B8F34A]">{isPremium ? "PRO Tier" : "Free Tier"}</div>
+          </div>
+          {user ? (
+            <button onClick={handleLogout} className="p-1.5 rounded-lg bg-red-500/20 text-red-400 hover:bg-red-500/30" title="Sign Out">
+              <LogOut className="w-4 h-4" />
+            </button>
+          ) : (
+            <button 
+              onClick={() => { setAuthMode("login"); setShowAuthModal(true); }}
+              className="px-2.5 py-1.5 rounded-lg bg-[#B8F34A] text-black font-bold text-[11px]"
+            >
+              Sign In
+            </button>
+          )}
+        </div>
+      </aside>
+
+      {/* MAIN CONTENT AREA */}
+      <main className="flex-1 p-5 md:p-8 overflow-y-auto max-w-7xl mx-auto w-full space-y-6">
+        {activeTab === "dashboard" && (
+          <div className="space-y-6">
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-[#15191D] border border-white/10 rounded-2xl p-6">
+              <div>
+                <span className="text-xs uppercase tracking-wider text-[#B8F34A] font-bold">
+                  Connected Training & Nutrition Hub
+                </span>
+                <h1 className="text-2xl md:text-3xl font-black mt-1">
+                  Welcome back, {profile.name}
+                </h1>
+                <p className="text-sm text-gray-400 mt-1">
+                  Experience: <strong className="text-white">Intermediate</strong> • Schedule: <strong className="text-white">5 days/week</strong> • Status: <strong className="text-[#B8F34A]">{isPremium ? "FitForge PRO (20 TND/mo)" : "Free Member"}</strong>
+                </p>
+              </div>
+
+              <div className="flex items-center gap-3">
+                {!isPremium && (
+                  <button
+                    onClick={handleUpgradeToPro}
+                    className="px-4 py-2.5 rounded-xl bg-[#B8F34A] text-black font-black text-xs flex items-center gap-2 shadow-lg hover:brightness-110 transition"
+                  >
+                    <Crown className="w-4 h-4 fill-current" /> Upgrade — 20 TND/mo
+                  </button>
+                )}
+                <button
+                  onClick={() => setActiveTab("workouts")}
+                  className="px-4 py-2.5 rounded-xl bg-white/10 border border-white/15 text-white font-bold text-xs hover:bg-white/20 transition"
+                >
+                  Start Today's Workout
+                </button>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+              <div className="bg-[#15191D] border border-white/10 rounded-2xl p-5">
+                <span className="text-xs text-gray-400">Daily Calorie Target</span>
+                <div className="text-2xl font-black mt-2">{nutritionTargets.dailyCalories} / 1964 kcal</div>
+              </div>
+              <div className="bg-[#15191D] border border-white/10 rounded-2xl p-5">
+                <span className="text-xs text-gray-400">Protein Progress</span>
+                <div className="text-2xl font-black mt-2">79g <span className="text-xs text-gray-400">/ 160g</span></div>
+              </div>
+              <div className="bg-[#15191D] border border-white/10 rounded-2xl p-5">
+                <span className="text-xs text-gray-400">Today's Scheduled Session</span>
+                <div className="text-lg font-bold mt-2 truncate">Upper Body Strength</div>
+              </div>
+              <div className="bg-[#15191D] border border-white/10 rounded-2xl p-5">
+                <span className="text-xs text-gray-400">Current Body Weight</span>
+                <div className="text-2xl font-black mt-2">{profile.weightKg} kg</div>
+              </div>
+            </div>
+
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <h2 className="text-lg font-bold">Today's Exercises — Click Any Exercise for GIF & Video</h2>
+                <button onClick={() => setActiveTab("exercises")} className="text-xs text-[#B8F34A] hover:underline font-bold">Open Full Logger &gt;</button>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                {EXERCISES_DB.slice(0, 4).map(ex => (
+                  <div key={ex.id} className="bg-[#15191D] border border-white/10 rounded-2xl overflow-hidden group">
+                    <div className="relative h-36">
+                      <img src={ex.thumbnailUrl} alt={ex.name} className="w-full h-full object-cover group-hover:scale-105 transition duration-300" />
+                      <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-80 group-hover:opacity-100 transition">
+                        <div className="w-10 h-10 rounded-full bg-[#B8F34A] text-black flex items-center justify-center shadow-lg">
+                          <Play className="w-5 h-5 fill-current ml-0.5" />
+                        </div>
+                      </div>
+                      <span className="absolute top-2 left-2 px-2 py-0.5 rounded bg-black/70 text-[10px] font-bold text-[#B8F34A]">
+                        {ex.muscleGroup}
+                      </span>
+                    </div>
+                    <div className="p-4 space-y-2">
+                      <h3 className="font-bold text-sm truncate">{ex.name}</h3>
+                      <p className="text-[11px] text-gray-400">3 sets x 8-12 reps • 1-2 RIR</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {activeTab === "workouts" && (
+          <div className="space-y-6">
+            <h2 className="text-xl font-black">Workout Planner & Session Logs</h2>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {EXERCISES_DB.map(ex => (
+                <div key={ex.id} className="bg-[#15191D] border border-white/10 rounded-2xl p-4 flex gap-4 items-center">
+                  <img src={ex.thumbnailUrl} alt={ex.name} className="w-24 h-24 rounded-xl object-cover border border-white/10" />
+                  <div>
+                    <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-[#B8F34A]/15 text-[#B8F34A]">{ex.muscleGroup}</span>
+                    <h3 className="font-bold text-sm mt-1">{ex.name}</h3>
+                    <p className="text-xs text-gray-400 mt-1">{ex.cues[0]}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {activeTab === "exercises" && (
+          <div className="space-y-6">
+            <h2 className="text-xl font-black">Exercise Video & GIF Demonstration Library</h2>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {EXERCISES_DB.map(ex => (
+                <div key={ex.id} className="bg-[#15191D] border border-white/10 rounded-2xl overflow-hidden">
+                  <div className="relative h-48">
+                    <img src={ex.thumbnailUrl} alt={ex.name} className="w-full h-full object-cover" />
+                  </div>
+                  <div className="p-5 space-y-3">
+                    <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-[#B8F34A]/15 text-[#B8F34A]">{ex.muscleGroup}</span>
+                    <h3 className="font-bold text-base">{ex.name}</h3>
+                    <ul className="text-xs text-gray-300 space-y-1 list-disc pl-4">
+                      {ex.cues.map((cue, i) => <li key={i}>{cue}</li>)}
+                    </ul>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {activeTab === "nutrition" && (
+          <div className="space-y-6">
+            <h2 className="text-xl font-black">Nutrition Calculator & Macros</h2>
+            <div className="bg-[#15191D] border border-white/10 rounded-2xl p-6 grid grid-cols-2 md:grid-cols-4 gap-4 text-center">
+              <div className="p-4 bg-[#0B0D0F] rounded-xl border border-white/5">
+                <div className="text-xs text-gray-400">Calories</div>
+                <div className="text-xl font-black mt-1 text-[#B8F34A]">{nutritionTargets.dailyCalories}</div>
+              </div>
+              <div className="p-4 bg-[#0B0D0F] rounded-xl border border-white/5">
+                <div className="text-xs text-gray-400">Protein</div>
+                <div className="text-xl font-black mt-1">{nutritionTargets.proteinGrams}g</div>
+              </div>
+              <div className="p-4 bg-[#0B0D0F] rounded-xl border border-white/5">
+                <div className="text-xs text-gray-400">Carbs</div>
+                <div className="text-xl font-black mt-1">{nutritionTargets.carbGrams}g</div>
+              </div>
+              <div className="p-4 bg-[#0B0D0F] rounded-xl border border-white/5">
+                <div className="text-xs text-gray-400">Fats</div>
+                <div className="text-xl font-black mt-1">{nutritionTargets.fatGrams}g</div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {activeTab === "meals" && (
+          <div className="space-y-6">
+            <h2 className="text-xl font-black">Tunisian Grocery & Meal Selector</h2>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {INITIAL_FOODS_DB.map(food => (
+                <div key={food.id} className="bg-[#15191D] border border-white/10 rounded-2xl p-5 flex justify-between items-center">
+                  <div>
+                    <h3 className="font-bold text-sm">{food.name}</h3>
+                    <div className="text-xs text-gray-400 mt-1">
+                      {food.protein}g protein • {food.calories} kcal ({food.servingGrams}g)
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <span className="text-sm font-black text-[#B8F34A]">{food.costTND} TND</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {activeTab === "premium" && (
+          <div className="space-y-6">
+            <div className="bg-[#15191D] border border-[#B8F34A]/40 rounded-2xl p-8 relative overflow-hidden">
+              <div className="absolute top-0 right-0 w-64 h-64 bg-[#B8F34A]/10 rounded-full blur-3xl pointer-events-none" />
+              <div className="max-w-xl space-y-4 relative z-10">
+                <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-[#B8F34A]/20 text-[#B8F34A] text-xs font-bold">
+                  <Crown className="w-3.5 h-3.5 fill-current" /> PRO Exclusive Suite
+                </div>
+                <h1 className="text-3xl font-black">AI Coach, TND Budget Optimizer & Muscle Volume Heatmaps</h1>
+                <p className="text-sm text-gray-300 leading-relaxed">
+                  {isPremium
+                    ? "Your PRO subscription is active! You have full access to automated volume adjustments and local Tunisian budget solvers."
+                    : "Unlock this section by upgrading your account to FitForge PRO for 20 TND per month."}
+                </p>
+
+                {!isPremium && (
+                  <button
+                    onClick={handleUpgradeToPro}
+                    className="px-6 py-3.5 rounded-xl bg-[#B8F34A] text-black font-extrabold text-sm hover:brightness-110 transition shadow-lg"
+                  >
+                    Activate PRO Subscription — 20 TND / month
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+      </main>
+    </div>
+  );
+}
