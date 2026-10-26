@@ -2,25 +2,40 @@
 @tailwind components;
 @tailwind utilities;
 
-body {
-  background-color: #0B0D0F;
-  color: #FFFFFF;
-  font-family: 'Inter', system-ui, -apple-system, sans-serif;
-  margin: 0;
-  padding: 0;
+:root {
+  color-scheme: dark;
+  font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  background: #090c0e;
 }
 
-::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
+* { box-sizing: border-box; }
+html { min-width: 320px; scroll-behavior: smooth; }
+body {
+  min-width: 320px;
+  min-height: 100vh;
+  margin: 0;
+  padding: 0;
+  color: #f4f6f2;
+  background:
+    radial-gradient(ellipse at 85% -12%, rgba(184, 243, 74, 0.075), transparent 34rem),
+    #090c0e;
 }
-::-webkit-scrollbar-track {
-  background: #0B0D0F;
+button, input, select, textarea { font: inherit; }
+button { -webkit-tap-highlight-color: transparent; }
+button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible {
+  outline: 2px solid #b8f34a;
+  outline-offset: 3px;
 }
-::-webkit-scrollbar-thumb {
-  background: #262C34;
-  border-radius: 9999px;
-}
-::-webkit-scrollbar-thumb:hover {
-  background: #B8F34A;
+::selection { background: #b8f34a; color: #090c0e; }
+::-webkit-scrollbar { width: 8px; height: 8px; }
+::-webkit-scrollbar-track { background: #090c0e; }
+::-webkit-scrollbar-thumb { background: #30383d; border-radius: 9999px; }
+::-webkit-scrollbar-thumb:hover { background: #b8f34a; }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { scroll-behavior: auto !important; animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; }
 }
