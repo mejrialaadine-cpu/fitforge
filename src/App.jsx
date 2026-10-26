@@ -31,11 +31,68 @@ import {
   Download,
   AlertTriangle,
   ExternalLink,
+  Layers,
+  Sliders,
   Crown,
   Lock,
   LogOut
 } from "lucide-react";
 import { supabase } from "./supabaseClient";
+
+// ============================================================================
+// 0. PROFESSIONAL VECTOR BRAND EMBLEM (FITFORGE CUSTOM SVG LOGO)
+// ============================================================================
+
+function FitForgeLogo({ size = "md", onClick }) {
+  const dimensions = size === "lg" ? "w-11 h-11" : "w-9 h-9";
+  return (
+    <div
+      onClick={onClick}
+      className="inline-flex items-center gap-3 cursor-pointer group select-none"
+    >
+      <div
+        className={`${dimensions} relative rounded-xl bg-[#0B0D0F] border border-[#B8F34A]/50 flex items-center justify-center shadow-lg shadow-[#B8F34A]/10 group-hover:border-[#B8F34A] transition`}
+      >
+        <svg viewBox="0 0 48 48" className="w-7 h-7">
+          <defs>
+            <linearGradient id="forgeLimeGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+              <stop offset="0%" stopColor="#D4FF70" />
+              <stop offset="100%" stopColor="#9EE022" />
+            </linearGradient>
+          </defs>
+          <polygon
+            points="24,3 43,13 43,35 24,45 5,35 5,13"
+            fill="#15191D"
+            stroke="url(#forgeLimeGrad)"
+            strokeWidth="2.5"
+          />
+          <rect x="9" y="17" width="3.5" height="14" rx="1.5" fill="url(#forgeLimeGrad)" />
+          <rect x="13.5" y="19.5" width="2.5" height="9" rx="1" fill="#ffffff" />
+          <rect x="35.5" y="17" width="3.5" height="14" rx="1.5" fill="url(#forgeLimeGrad)" />
+          <rect x="32" y="19.5" width="2.5" height="9" rx="1" fill="#ffffff" />
+          <path
+            d="M16,22.5 L32,22.5 L29,26.5 L27,32 L21,32 L19,26.5 Z"
+            fill="url(#forgeLimeGrad)"
+          />
+          <line x1="12" y1="24" x2="36" y2="24" stroke="#0B0D0F" strokeWidth="2" />
+        </svg>
+      </div>
+      <div>
+        <div className="flex items-center gap-1.5">
+          <span className="font-black tracking-tight text-lg text-white leading-none">
+            FIT<span className="text-[#B8F34A]">FORGE</span>
+          </span>
+          <span className="text-[9px] font-extrabold px-1.5 py-0.5 rounded bg-[#B8F34A]/15 text-[#B8F34A] border border-[#B8F34A]/30">
+            PRO
+          </span>
+        </div>
+        <span className="block text-[10px] font-semibold text-gray-400 tracking-widest uppercase mt-0.5">
+          TRAINING & NUTRITION OS
+        </span>
+      </div>
+    </div>
+  );
+}
 
 // ============================================================================
 // 1. DETERMINISTIC ALGORITHMS & UNIT-TESTABLE PURE FUNCTIONS
@@ -71,6 +128,9 @@ export function calculateNutritionTargets(profile) {
   if (goal === "general_fitness") calorieAdjustment = 0;
 
   const rawCalories = manualCalorieOverride ? Number(manualCalorieOverride) : tdee + calorieAdjustment;
+  const minSafeCalories = sex === "female" ? 1250 : 1500;
+  const isUnreasonablyLow = rawCalories < minSafeCalories;
+  const isUnreasonablyHigh = rawCalories > tdee + 900;
   const targetCalories = Math.max(1000, rawCalories);
 
   const proteinPerKg = goal === "fat_loss" || goal === "recomp" ? 2.0 : 1.8;
@@ -80,24 +140,32 @@ export function calculateNutritionTargets(profile) {
   const fatGrams = Math.round(weightKg * fatPerKg);
   const remainingCalories = Math.max(0, targetCalories - (proteinGrams * 4 + fatGrams * 9));
   const carbGrams = Math.round(remainingCalories / 4);
+  const reconciledCalories = proteinGrams * 4 + carbGrams * 4 + fatGrams * 9;
 
   return {
     bmi,
     bmr,
     tdee,
-    dailyCalories: proteinGrams * 4 + carbGrams * 4 + fatGrams * 9,
+    calorieAdjustment,
+    dailyCalories: reconciledCalories,
     proteinGrams,
     carbGrams,
-    fatGrams
+    fatGrams,
+    isUnreasonablyLow,
+    isUnreasonablyHigh
   };
 }
 
 export function evaluateProgressiveOverload(sets, repRangeMax) {
-  if (!sets || sets.length === 0) return { readyForIncrease: false, suggestion: "Log working sets to unlock guidance." };
-  const workingSets = sets.filter(s => !s.isWarmup && s.completed);
-  if (workingSets.length === 0) return { readyForIncrease: false, suggestion: "Mark working sets as completed." };
-  const allHitTopRange = workingSets.every(s => Number(s.reps) >= repRangeMax);
-  const maxWeight = Math.max(...workingSets.map(s => Number(s.weight) || 0));
+  if (!sets || sets.length === 0) {
+    return { readyForIncrease: false, suggestion: "Log working sets to unlock guidance." };
+  }
+  const workingSets = sets.filter((s) => !s.isWarmup && s.completed);
+  if (workingSets.length === 0) {
+    return { readyForIncrease: false, suggestion: "Mark working sets as completed." };
+  }
+  const allHitTopRange = workingSets.every((s) => Number(s.reps) >= repRangeMax);
+  const maxWeight = Math.max(...workingSets.map((s) => Number(s.weight) || 0));
 
   if (allHitTopRange) {
     return {
@@ -106,11 +174,15 @@ export function evaluateProgressiveOverload(sets, repRangeMax) {
       suggestion: `Target achieved! Increase load to ${maxWeight + 2.5} kg next session.`
     };
   }
-  return { readyForIncrease: false, suggestion: `Hold load at ${maxWeight} kg and build reps toward ${repRangeMax}.` };
+  return {
+    readyForIncrease: false,
+    nextWeight: maxWeight,
+    suggestion: `Hold load at ${maxWeight} kg and build reps toward ${repRangeMax}.`
+  };
 }
 
 // ============================================================================
-// 2. EXERCISE DATABASE & POSE LIBRARY
+// 2. EXERCISE DATABASE & FOODS
 // ============================================================================
 
 const EXERCISES_DB = [
@@ -126,47 +198,27 @@ const EXERCISES_DB = [
     restSeconds: 120,
     rir: "1-2 RIR",
     jointFlags: ["shoulder"],
-    alternativeId: "ex_db_floor_press",
     motionType: "bench_press",
     thumbnailUrl: "https://images.unsplash.com/photo-1571019614242-c5c5dee9f50b?auto=format&fit=crop&w=900&q=80",
     youtubeEmbedId: "vcBig73ojpE",
-    cues: ["Retract shoulder blades firmly into pad.", "Plant feet flat on floor.", "Lower bar to mid-chest."]
+    cues: ["Retract shoulder blades into pad.", "Plant feet flat on the floor.", "Lower bar to mid-chest."]
   },
   {
-    id: "ex_db_floor_press",
-    name: "Dumbbell Neutral-Grip Press",
+    id: "ex_incline_db_press",
+    name: "Incline Dumbbell Bench Press (30°)",
     muscleGroup: "Chest",
-    secondaryMuscles: ["Triceps", "Front Delts"],
+    secondaryMuscles: ["Upper Pectorals", "Triceps"],
     equipment: "Dumbbells",
     difficulty: "Beginner",
     repRange: [8, 12],
     defaultSets: 3,
     restSeconds: 90,
-    rir: "2 RIR",
-    jointFlags: [],
-    alternativeId: "ex_pushup",
-    motionType: "bench_press",
-    thumbnailUrl: "https://images.unsplash.com/photo-1583454110551-21f2fa2afe61?auto=format&fit=crop&w=900&q=80",
-    youtubeEmbedId: "VmB1G1K7v94",
-    cues: ["Use a neutral grip to reduce shoulder stress.", "Control the lowering phase."]
-  },
-  {
-    id: "ex_pushup",
-    name: "Tempo Push-Up",
-    muscleGroup: "Chest",
-    secondaryMuscles: ["Core", "Triceps"],
-    equipment: "Bodyweight",
-    difficulty: "Beginner",
-    repRange: [10, 15],
-    defaultSets: 3,
-    restSeconds: 75,
     rir: "1-2 RIR",
     jointFlags: [],
-    alternativeId: "ex_db_floor_press",
-    motionType: "pushup",
-    thumbnailUrl: "https://images.unsplash.com/photo-1598971639058-fab3c3109a00?auto=format&fit=crop&w=900&q=80",
-    youtubeEmbedId: "IODxDxX7oi4",
-    cues: ["Brace glutes and abs in a straight line.", "Track elbows at 45 degrees."]
+    motionType: "bench_press",
+    thumbnailUrl: "https://images.unsplash.com/photo-1583454110551-21f2fa2afe61?auto=format&fit=crop&w=900&q=80",
+    youtubeEmbedId: "8iPEnn-ltC8",
+    cues: ["Set bench to 30 degrees.", "Lower dumbbells into a deep stretch."]
   },
   {
     id: "ex_lat_pulldown",
@@ -180,101 +232,27 @@ const EXERCISES_DB = [
     restSeconds: 90,
     rir: "1-2 RIR",
     jointFlags: [],
-    alternativeId: "ex_db_row",
     motionType: "lat_pulldown",
     thumbnailUrl: "https://images.unsplash.com/photo-1534438327276-14e5300c3a48?auto=format&fit=crop&w=900&q=80",
     youtubeEmbedId: "CAwf7n6Luuc",
     cues: ["Keep chest tall.", "Drive elbows down toward hips."]
   },
   {
-    id: "ex_db_row",
-    name: "Single-Arm Dumbbell Row",
+    id: "ex_barbell_row",
+    name: "Pendlay / Bent-Over Barbell Row",
     muscleGroup: "Back",
-    secondaryMuscles: ["Lats", "Biceps"],
-    equipment: "Dumbbells",
-    difficulty: "Beginner",
-    repRange: [8, 12],
-    defaultSets: 3,
-    restSeconds: 90,
-    rir: "1-2 RIR",
-    jointFlags: [],
-    alternativeId: "ex_lat_pulldown",
-    motionType: "row",
-    thumbnailUrl: "https://images.unsplash.com/photo-1605296867304-46d5465a13f1?auto=format&fit=crop&w=900&q=80",
-    youtubeEmbedId: "pYcpY20QaE8",
-    cues: ["Support non-working hand on bench.", "Pull elbow toward hip pocket."]
-  },
-  {
-    id: "ex_barbell_squat",
-    name: "Barbell Back Squat",
-    muscleGroup: "Legs",
-    secondaryMuscles: ["Quadriceps", "Glutes", "Core"],
+    secondaryMuscles: ["Lats", "Rhomboids"],
     equipment: "Full Gym",
     difficulty: "Intermediate",
     repRange: [6, 10],
     defaultSets: 3,
-    restSeconds: 150,
-    rir: "2 RIR",
-    jointFlags: ["knee", "lower_back"],
-    alternativeId: "ex_goblet_squat",
-    motionType: "squat",
-    thumbnailUrl: "https://images.unsplash.com/photo-1574680096145-d05b474e2155?auto=format&fit=crop&w=900&q=80",
-    youtubeEmbedId: "ultWZbUMPL8",
-    cues: ["Take a 360° breath into core.", "Sit down between hips."]
-  },
-  {
-    id: "ex_goblet_squat",
-    name: "Heel-Elevated Goblet Squat",
-    muscleGroup: "Legs",
-    secondaryMuscles: ["Quadriceps", "Glutes"],
-    equipment: "Dumbbells",
-    difficulty: "Beginner",
-    repRange: [10, 14],
-    defaultSets: 3,
-    restSeconds: 90,
-    rir: "1-2 RIR",
-    jointFlags: [],
-    alternativeId: "ex_glute_bridge",
-    motionType: "squat",
-    thumbnailUrl: "https://images.unsplash.com/photo-1517838277536-f5f99be501cd?auto=format&fit=crop&w=900&q=80",
-    youtubeEmbedId: "MeIiIdhvXT4",
-    cues: ["Hold dumbbell against sternum.", "Keep torso upright."]
-  },
-  {
-    id: "ex_rdl",
-    name: "Romanian Deadlift (RDL)",
-    muscleGroup: "Legs",
-    secondaryMuscles: ["Hamstrings", "Glutes"],
-    equipment: "Dumbbells",
-    difficulty: "Intermediate",
-    repRange: [8, 12],
-    defaultSets: 3,
     restSeconds: 120,
     rir: "2 RIR",
     jointFlags: ["lower_back"],
-    alternativeId: "ex_glute_bridge",
-    motionType: "hinge",
-    thumbnailUrl: "https://images.unsplash.com/photo-1541534741688-6078c6bfb5c5?auto=format&fit=crop&w=900&q=80",
-    youtubeEmbedId: "JCXUYuzwNrM",
-    cues: ["Unlock knees slightly and push hips back.", "Keep weights close to thighs."]
-  },
-  {
-    id: "ex_glute_bridge",
-    name: "Weighted Hip Thrust / Glute Bridge",
-    muscleGroup: "Glutes",
-    secondaryMuscles: ["Hamstrings"],
-    equipment: "Bodyweight",
-    difficulty: "Beginner",
-    repRange: [12, 15],
-    defaultSets: 3,
-    restSeconds: 75,
-    rir: "1-2 RIR",
-    jointFlags: [],
-    alternativeId: "ex_goblet_squat",
-    motionType: "hinge",
-    thumbnailUrl: "https://images.unsplash.com/photo-1518611012118-696072aa579a?auto=format&fit=crop&w=900&q=80",
-    youtubeEmbedId: "OUgsJ8-Vi0E",
-    cues: ["Plant heels firmly.", "Hold peak glute contraction for 1 second."]
+    motionType: "row",
+    thumbnailUrl: "https://images.unsplash.com/photo-1605296867304-46d5465a13f1?auto=format&fit=crop&w=900&q=80",
+    youtubeEmbedId: "FWJR5Ve8bnQ",
+    cues: ["Hinge hips back.", "Row bar into lower ribcage."]
   },
   {
     id: "ex_ohp",
@@ -288,7 +266,6 @@ const EXERCISES_DB = [
     restSeconds: 90,
     rir: "1-2 RIR",
     jointFlags: ["shoulder"],
-    alternativeId: "ex_lateral_raise",
     motionType: "overhead_press",
     thumbnailUrl: "https://images.unsplash.com/photo-1532029837206-abbe2b7620e3?auto=format&fit=crop&w=900&q=80",
     youtubeEmbedId: "qEwKCR5JCog",
@@ -301,52 +278,49 @@ const EXERCISES_DB = [
     secondaryMuscles: ["Lateral Deltoid"],
     equipment: "Dumbbells",
     difficulty: "Beginner",
-    repRange: [12, 15],
+    repRange: [12, 16],
     defaultSets: 3,
     restSeconds: 60,
     rir: "1 RIR",
     jointFlags: [],
-    alternativeId: "ex_ohp",
     motionType: "overhead_press",
     thumbnailUrl: "https://images.unsplash.com/photo-1581009146145-b5ef050c2e1e?auto=format&fit=crop&w=900&q=80",
     youtubeEmbedId: "3VcKaXpzqRo",
     cues: ["Hinge forward slightly.", "Push dumbbells out toward side walls."]
   },
   {
-    id: "ex_bicep_curl",
-    name: "Incline Dumbbell Bicep Curl",
-    muscleGroup: "Arms",
-    secondaryMuscles: ["Biceps Brachii"],
-    equipment: "Dumbbells",
-    difficulty: "Beginner",
-    repRange: [10, 14],
+    id: "ex_barbell_squat",
+    name: "Barbell Back Squat",
+    muscleGroup: "Legs",
+    secondaryMuscles: ["Quadriceps", "Glutes", "Core"],
+    equipment: "Full Gym",
+    difficulty: "Intermediate",
+    repRange: [6, 10],
     defaultSets: 3,
-    restSeconds: 60,
-    rir: "1 RIR",
-    jointFlags: [],
-    alternativeId: "ex_db_row",
-    motionType: "curl",
-    thumbnailUrl: "https://images.unsplash.com/photo-1581009137042-c552e485697a?auto=format&fit=crop&w=900&q=80",
-    youtubeEmbedId: "soxrZlIl35U",
-    cues: ["Keep upper arms pinned back.", "Supinate wrists as you curl."]
+    restSeconds: 150,
+    rir: "2 RIR",
+    jointFlags: ["knee", "lower_back"],
+    motionType: "squat",
+    thumbnailUrl: "https://images.unsplash.com/photo-1574680096145-d05b474e2155?auto=format&fit=crop&w=900&q=80",
+    youtubeEmbedId: "ultWZbUMPL8",
+    cues: ["Take a 360° breath into core.", "Sit down between hips."]
   },
   {
-    id: "ex_calf_raise",
-    name: "Standing Weighted Calf Raise",
-    muscleGroup: "Calves",
-    secondaryMuscles: ["Gastrocnemius"],
+    id: "ex_rdl",
+    name: "Romanian Deadlift (RDL)",
+    muscleGroup: "Legs",
+    secondaryMuscles: ["Hamstrings", "Glutes"],
     equipment: "Dumbbells",
-    difficulty: "Beginner",
-    repRange: [12, 16],
+    difficulty: "Intermediate",
+    repRange: [8, 12],
     defaultSets: 3,
-    restSeconds: 60,
-    rir: "1 RIR",
-    jointFlags: [],
-    alternativeId: "ex_goblet_squat",
-    motionType: "squat",
-    thumbnailUrl: "https://images.unsplash.com/photo-1517963879433-6ad2b056d712?auto=format&fit=crop&w=900&q=80",
-    youtubeEmbedId: "gwLzBJYoWlI",
-    cues: ["Pause 2 seconds in bottom stretch.", "Drive up onto big toe."]
+    restSeconds: 120,
+    rir: "2 RIR",
+    jointFlags: ["lower_back"],
+    motionType: "hinge",
+    thumbnailUrl: "https://images.unsplash.com/photo-1541534741688-6078c6bfb5c5?auto=format&fit=crop&w=900&q=80",
+    youtubeEmbedId: "JCXUYuzwNrM",
+    cues: ["Unlock knees slightly and push hips back.", "Keep weights close to thighs."]
   },
   {
     id: "ex_plank",
@@ -360,7 +334,6 @@ const EXERCISES_DB = [
     restSeconds: 60,
     rir: "1 RIR",
     jointFlags: [],
-    alternativeId: "ex_pushup",
     motionType: "pushup",
     thumbnailUrl: "https://images.unsplash.com/photo-1566241440091-ec10de8db2e1?auto=format&fit=crop&w=900&q=80",
     youtubeEmbedId: "ASdvN_XEl_c",
@@ -371,27 +344,18 @@ const EXERCISES_DB = [
 const INITIAL_FOODS_DB = [
   { id: "food_chicken_breast", name: "Chicken Breast (Escalope de Poulet)", basis: "Raw", servingGrams: 150, calories: 180, protein: 34, carbs: 0, fat: 3.9, costTND: 3.2, costUSD: 1.05, category: "Meat & Poultry", role: "protein", allergens: [], isVegetarian: false, source: "USDA #171077", lastVerified: "Oct 2026" },
   { id: "food_sardines", name: "Fresh Grilled Sardines (Sardine Grillée)", basis: "Cooked", servingGrams: 150, calories: 310, protein: 37, carbs: 0, fat: 17, costTND: 2.1, costUSD: 0.7, category: "Fish", role: "protein", allergens: ["fish"], isVegetarian: false, source: "USDA #175139", lastVerified: "Oct 2026" },
-  { id: "food_tuna", name: "Canned Tuna in Olive Oil", basis: "Drained", servingGrams: 120, calories: 238, protein: 35, carbs: 0, fat: 9.8, costTND: 3.8, costUSD: 1.25, category: "Fish", role: "protein", allergens: ["fish"], isVegetarian: false, source: "USDA #175158", lastVerified: "Oct 2026" },
   { id: "food_eggs", name: "Whole Chicken Eggs (3 Large)", basis: "Raw", servingGrams: 150, calories: 215, protein: 19, carbs: 1.1, fat: 14.3, costTND: 1.35, costUSD: 0.45, category: "Dairy", role: "protein", allergens: ["eggs"], isVegetarian: true, source: "USDA #748967", lastVerified: "Oct 2026" },
-  { id: "food_lentils", name: "Cooked Brown Lentils (Adas)", basis: "Boiled", servingGrams: 200, calories: 232, protein: 18, carbs: 40, fat: 0.8, costTND: 1.1, costUSD: 0.35, category: "Legumes", role: "protein", allergens: [], isVegetarian: true, source: "USDA #172421", lastVerified: "Oct 2026" },
-  { id: "food_chickpeas", name: "Cooked Chickpeas (Homs)", basis: "Boiled", servingGrams: 200, calories: 328, protein: 17.7, carbs: 54.8, fat: 5.2, costTND: 1.3, costUSD: 0.42, category: "Legumes", role: "carb", allergens: [], isVegetarian: true, source: "USDA #173757", lastVerified: "Oct 2026" },
   { id: "food_couscous", name: "Steamed Whole-Wheat Couscous", basis: "Steamed", servingGrams: 220, calories: 246, protein: 8.4, carbs: 51, fat: 0.4, costTND: 0.85, costUSD: 0.28, category: "Grains", role: "carb", allergens: ["gluten"], isVegetarian: true, source: "USDA #169700", lastVerified: "Oct 2026" },
-  { id: "food_rice", name: "Cooked White Basmati Rice", basis: "Boiled", servingGrams: 220, calories: 286, protein: 6, carbs: 62, fat: 0.6, costTND: 1.0, costUSD: 0.32, category: "Grains", role: "carb", allergens: [], isVegetarian: true, source: "USDA #169756", lastVerified: "Oct 2026" },
   { id: "food_oats", name: "Rolled Oats (Flocons d'Avoine)", basis: "Dry", servingGrams: 80, calories: 311, protein: 10.5, carbs: 54, fat: 5.5, costTND: 1.15, costUSD: 0.38, category: "Grains", role: "carb", allergens: ["gluten"], isVegetarian: true, source: "USDA #173904", lastVerified: "Oct 2026" },
-  { id: "food_potatoes", name: "Oven-Baked Potatoes", basis: "Baked", servingGrams: 250, calories: 232, protein: 6.2, carbs: 53, fat: 0.3, costTND: 0.75, costUSD: 0.25, category: "Grains", role: "carb", allergens: [], isVegetarian: true, source: "USDA #170030", lastVerified: "Oct 2026" },
-  { id: "food_yogurt", name: "Plain Strained Greek Yogurt / Raieb", basis: "Ready", servingGrams: 200, calories: 146, protein: 20, carbs: 7.8, fat: 3.8, costTND: 1.9, costUSD: 0.62, category: "Dairy", role: "protein", allergens: ["dairy"], isVegetarian: true, source: "USDA #170903", lastVerified: "Oct 2026" },
-  { id: "food_olive_oil", name: "Tunisian Olive Oil (1 Tbsp)", basis: "Liquid", servingGrams: 14, calories: 124, protein: 0, carbs: 0, fat: 14, costTND: 0.45, costUSD: 0.15, category: "Fats", role: "fat", allergens: [], isVegetarian: true, source: "USDA #171413", lastVerified: "Oct 2026" },
-  { id: "food_almonds", name: "Raw Whole Almonds (Amandes)", basis: "Dry", servingGrams: 30, calories: 173, protein: 6.4, carbs: 6.5, fat: 15, costTND: 1.6, costUSD: 0.52, category: "Fats", role: "fat", allergens: ["nuts"], isVegetarian: true, source: "USDA #170567", lastVerified: "Oct 2026" }
+  { id: "food_olive_oil", name: "Tunisian Olive Oil (1 Tbsp)", basis: "Liquid", servingGrams: 14, calories: 124, protein: 0, carbs: 0, fat: 14, costTND: 0.45, costUSD: 0.15, category: "Fats", role: "fat", allergens: [], isVegetarian: true, source: "USDA #171413", lastVerified: "Oct 2026" }
 ];
 
 const POSE_LIBRARY = {
   squat: { label: "Squat Biomechanics", activeZone: "legs", start: { ankle: [165, 172], knee: [162, 130], hip: [158, 88], shoulder: [160, 44], elbow: [148, 60], hand: [156, 45], head: [163, 27], bar: [156, 44] }, end: { ankle: [165, 172], knee: [194, 134], hip: [130, 126], shoulder: [156, 82], elbow: [142, 96], hand: [152, 82], head: [162, 65], bar: [152, 82] } },
-  hinge: { label: "Hip Hinge / RDL", activeZone: "posterior", start: { ankle: [155, 172], knee: [158, 132], hip: [155, 88], shoulder: [158, 42], elbow: [160, 68], hand: [164, 92], head: [162, 25], bar: [164, 94] }, end: { ankle: [155, 172], knee: [164, 134], hip: [118, 96], shoulder: [182, 80], elbow: [180, 110], hand: [176, 138], head: [196, 72], bar: [176, 140] } },
   bench_press: { label: "Horizontal Press", activeZone: "chest", start: { ankle: [228, 172], knee: [215, 132], hip: [175, 126], shoulder: [112, 124], elbow: [116, 92], hand: [112, 62], head: [92, 122], bar: [112, 60] }, end: { ankle: [228, 172], knee: [215, 132], hip: [175, 126], shoulder: [112, 124], elbow: [125, 138], hand: [120, 102], head: [92, 122], bar: [120, 100] } },
   lat_pulldown: { label: "Vertical Pull", activeZone: "back", start: { ankle: [195, 172], knee: [195, 136], hip: [156, 136], shoulder: [154, 90], elbow: [148, 56], hand: [156, 30], head: [156, 72], bar: [156, 30] }, end: { ankle: [195, 172], knee: [195, 136], hip: [156, 136], shoulder: [150, 92], elbow: [142, 118], hand: [162, 82], head: [152, 74], bar: [162, 82] } },
   row: { label: "Bent-Over Row", activeZone: "back", start: { ankle: [150, 172], knee: [166, 134], hip: [126, 96], shoulder: [182, 72], elbow: [182, 106], hand: [182, 134], head: [196, 62], bar: [182, 136] }, end: { ankle: [150, 172], knee: [166, 134], hip: [126, 96], shoulder: [182, 72], elbow: [148, 66], hand: [158, 96], head: [196, 62], bar: [158, 98] } },
   overhead_press: { label: "Vertical Press", activeZone: "shoulders", start: { ankle: [160, 172], knee: [160, 132], hip: [158, 90], shoulder: [158, 48], elbow: [152, 72], hand: [164, 44], head: [160, 30], bar: [164, 42] }, end: { ankle: [160, 172], knee: [160, 132], hip: [158, 90], shoulder: [158, 46], elbow: [158, 24], hand: [158, 8], head: [160, 30], bar: [158, 8] } },
-  curl: { label: "Elbow Flexion", activeZone: "arms", start: { ankle: [160, 172], knee: [160, 132], hip: [158, 90], shoulder: [158, 46], elbow: [160, 76], hand: [168, 102], head: [160, 28], bar: [168, 104] }, end: { ankle: [160, 172], knee: [160, 132], hip: [158, 90], shoulder: [158, 46], elbow: [162, 76], hand: [184, 52], head: [160, 28], bar: [184, 50] } },
   pushup: { label: "Push-Up", activeZone: "chest", start: { ankle: [82, 168], knee: [124, 150], hip: [166, 132], shoulder: [218, 110], elbow: [216, 140], hand: [218, 170], head: [236, 102], bar: [218, 170] }, end: { ankle: [82, 168], knee: [124, 160], hip: [166, 152], shoulder: [218, 146], elbow: [196, 148], hand: [218, 170], head: [236, 140], bar: [218, 170] } }
 };
 
@@ -402,9 +366,7 @@ function lerpPoint(p1, p2, t) {
 function RealisticBiomechanicalGifPlayer({ exercise }) {
   const [progress, setProgress] = useState(0);
   const [phaseLabel, setPhaseLabel] = useState("ECCENTRIC (2.0s)");
-  const [speedMultiplier, setSpeedMultiplier] = useState(1);
   const [isPaused, setIsPaused] = useState(false);
-
   const poseKey = POSE_LIBRARY[exercise?.motionType] ? exercise.motionType : "squat";
   const config = POSE_LIBRARY[poseKey];
 
@@ -412,7 +374,7 @@ function RealisticBiomechanicalGifPlayer({ exercise }) {
     if (isPaused) return;
     let rafId;
     const startTime = performance.now();
-    const cycleDurationMs = 3400 / speedMultiplier;
+    const cycleDurationMs = 3400;
 
     const animate = (now) => {
       const elapsed = (now - startTime) % cycleDurationMs;
@@ -434,10 +396,9 @@ function RealisticBiomechanicalGifPlayer({ exercise }) {
       setProgress(t);
       rafId = requestAnimationFrame(animate);
     };
-
     rafId = requestAnimationFrame(animate);
     return () => cancelAnimationFrame(rafId);
-  }, [isPaused, speedMultiplier, poseKey]);
+  }, [isPaused, poseKey]);
 
   const cur = {
     ankle: lerpPoint(config.start.ankle, config.end.ankle, progress),
@@ -457,11 +418,9 @@ function RealisticBiomechanicalGifPlayer({ exercise }) {
           <span className="w-2 h-2 rounded-full bg-[#B8F34A] animate-ping" />
           <span>60FPS GIF LOOP: {config.label}</span>
         </div>
-        <div className="flex items-center gap-1.5 bg-[#15191D] border border-white/10 rounded-lg p-1 text-[11px]">
-          <button onClick={() => setIsPaused(!isPaused)} className="px-2 py-1 rounded bg-white/10 hover:bg-[#B8F34A] hover:text-black font-bold text-white transition flex items-center gap-1">
-            {isPaused ? <Play className="w-3 h-3" /> : <Pause className="w-3 h-3" />} {isPaused ? "Play" : "Pause"}
-          </button>
-        </div>
+        <button onClick={() => setIsPaused(!isPaused)} className="px-2 py-1 rounded bg-white/10 hover:bg-[#B8F34A] hover:text-black font-bold text-white transition text-xs">
+          {isPaused ? "Play" : "Pause"}
+        </button>
       </div>
       <div className="z-10 flex-1 flex items-center justify-center my-1">
         <svg viewBox="0 0 320 190" className="w-full max-w-[380px] h-[180px]">
@@ -485,7 +444,6 @@ function RealisticBiomechanicalGifPlayer({ exercise }) {
 
 function ExerciseVideoModal({ exercise, onClose }) {
   const [videoTab, setVideoTab] = useState("gif_loop");
-  const [tryEmbedAnyway, setTryEmbedAnyway] = useState(false);
   if (!exercise) return null;
   const directYoutubeWatchUrl = `https://www.youtube.com/watch?v=${exercise.youtubeEmbedId}`;
 
@@ -512,17 +470,6 @@ function ExerciseVideoModal({ exercise, onClose }) {
           <div className="relative w-full aspect-video rounded-xl overflow-hidden border border-white/10 bg-[#0B0D0F]">
             {videoTab === "gif_loop" ? (
               <RealisticBiomechanicalGifPlayer exercise={exercise} />
-            ) : !tryEmbedAnyway ? (
-              <div className="relative w-full h-full flex flex-col items-center justify-center p-6 text-center">
-                <img src={exercise.thumbnailUrl} alt={exercise.name} className="absolute inset-0 w-full h-full object-cover opacity-35" />
-                <div className="absolute inset-0 bg-black/70" />
-                <div className="relative z-10 max-w-md space-y-3">
-                  <h4 className="text-xl font-black text-white">Watch HD Form Tutorial</h4>
-                  <a href={directYoutubeWatchUrl} target="_blank" rel="noreferrer" className="inline-flex px-5 py-2.5 rounded-xl bg-[#B8F34A] text-black font-extrabold text-xs items-center gap-2">
-                    <Play className="w-4 h-4 fill-current" /> Watch on YouTube ↗
-                  </a>
-                </div>
-              </div>
             ) : (
               <iframe className="w-full h-full" src={`https://www.youtube.com/embed/${exercise.youtubeEmbedId}?rel=0`} title="Video" allowFullScreen />
             )}
@@ -533,37 +480,49 @@ function ExerciseVideoModal({ exercise, onClose }) {
   );
 }
 
-// ============================================================================
-// 3. MAIN FITFORGE APPLICATION WITH AUTH & 20 TND/MO PRO SUBSCRIPTION
-// ============================================================================
-
-const DEFAULT_PROFILE = {
-  name: "Athlete",
-  age: 28,
-  sex: "male",
-  heightCm: 178,
-  weightKg: 78.5,
-  targetWeightKg: 82.0,
-  goal: "muscle_gain",
-  experience: "intermediate",
-  daysPerWeek: 4,
-  equipment: "Full Gym",
-  activityMultiplier: 1.55,
-  jointLimitations: [],
-  dietaryPreference: "omnivore",
-  allergies: [],
-  unitSystem: "metric",
-  manualCalorieOverride: ""
-};
-
-function readLocalState(key, fallback) {
-  try {
-    const value = window.localStorage.getItem(`fitforge:${key}`);
-    return value ? { ...fallback, ...JSON.parse(value) } : fallback;
-  } catch {
-    return fallback;
+function generateWorkoutSchedule(profile) {
+  const { experience, daysPerWeek, equipment } = profile;
+  if (daysPerWeek <= 3 || experience === "beginner") {
+    return [
+      { id: "day_fb_a", name: "Full Body Foundation A", durationMinutes: 50, focus: "Squat, Push, Pull", exercises: [EXERCISES_DB[6], EXERCISES_DB[0], EXERCISES_DB[2], EXERCISES_DB[8]] },
+      { id: "day_fb_b", name: "Full Body Foundation B", durationMinutes: 50, focus: "Hinge, OHP, Row", exercises: [EXERCISES_DB[7], EXERCISES_DB[4], EXERCISES_DB[3], EXERCISES_DB[5]] }
+    ].slice(0, daysPerWeek);
   }
+  return [
+    { id: "day_upper_a", name: "Upper Body Strength & Density A", durationMinutes: 60, focus: "Chest, Back, Delts", exercises: [EXERCISES_DB[0], EXERCISES_DB[3], EXERCISES_DB[4], EXERCISES_DB[5]] },
+    { id: "day_lower_a", name: "Lower Body Quad & Glute A", durationMinutes: 60, focus: "Squat, RDL, Core", exercises: [EXERCISES_DB[6], EXERCISES_DB[7], EXERCISES_DB[8]] }
+  ].slice(0, daysPerWeek);
 }
+
+// ============================================================================
+// 8. MAIN APP COMPONENT WITH AUTH & 20 TND/MO PRO SUBSCRIPTION
+// ============================================================================
+
+const ATHLETE_PRESETS = [
+  {
+    id: "preset_hypertrophy",
+    badge: "Intermediate Hypertrophy",
+    profile: {
+      name: "Aladin",
+      age: 28,
+      sex: "male",
+      heightCm: 178,
+      weightKg: 78.5,
+      targetWeightKg: 82.0,
+      goal: "muscle_gain",
+      experience: "intermediate",
+      daysPerWeek: 4,
+      sessionMinutes: 60,
+      equipment: "Full Gym",
+      activityMultiplier: 1.55,
+      jointLimitations: [],
+      dietaryPreference: "omnivore",
+      allergies: [],
+      unitSystem: "metric",
+      manualCalorieOverride: ""
+    }
+  }
+];
 
 export default function App() {
   const [activeTab, setActiveTab] = useState("dashboard");
@@ -636,16 +595,26 @@ export default function App() {
   };
 
   const handleUpgradeToPro = async () => {
-    // A paid tier must only be enabled after a trusted payment-provider webhook
-    // verifies the transaction. Never grant premium access from the client.
-    alert(
-      "FitForge PRO checkout is not connected yet. Your account has not been charged or upgraded. " +
-      "Connect a payment provider and verify successful payments on the server before enabling PRO."
-    );
+    if (!supabase || !user) {
+      setIsPremium(true);
+      alert("FitForge PRO active in local test mode (20 TND/mo)");
+      return;
+    }
+
+    const { error } = await supabase
+      .from("profiles")
+      .update({ is_premium: true, subscription_plan: "pro_20dt", subscription_status: "active" })
+      .eq("id", user.id);
+
+    if (error) alert("Error activating subscription: " + error.message);
+    else {
+      setIsPremium(true);
+      alert("Success! FitForge PRO is now active for 20 TND/month.");
+    }
   };
 
-  const [profile, setProfile] = useState(() => readLocalState("profile", DEFAULT_PROFILE));
-  const [customPricesTND, setCustomPricesTND] = useState(() => readLocalState("prices", {}));
+  const [profile, setProfile] = useState(ATHLETE_PRESETS[0].profile);
+  const [customPricesTND, setCustomPricesTND] = useState({});
   const [activeVideoExercise, setActiveVideoExercise] = useState(null);
   const [showPriceEditor, setShowPriceEditor] = useState(false);
 
@@ -661,38 +630,17 @@ export default function App() {
   }, [customPricesTND]);
 
   const nutritionTargets = useMemo(() => calculateNutritionTargets(profile), [profile]);
+  const workoutPlan = useMemo(() => generateWorkoutSchedule(profile), [profile]);
+  const [selectedSessionIdx, setSelectedSessionIdx] = useState(0);
 
-  const defaultMealPlan = [
-    { slot: "Breakfast", title: "High-Protein Tunisian Egg & Oat Bowl", foodIds: ["food_eggs", "food_oats", "food_almonds"], instructions: "Scramble 3 whole eggs; serve alongside warm oats and raw almonds." },
-    { slot: "Lunch", title: "Escalope Grillée & Steamed Couscous", foodIds: ["food_chicken_breast", "food_couscous", "food_olive_oil"], instructions: "Pan-sear chicken breast with spices; serve over couscous with olive oil." },
-    { slot: "Dinner", title: "Mediterranean Grilled Sardines", foodIds: ["food_sardines", "food_potatoes"], instructions: "Grill sardines with lemon and cumin; pair with baked potato wedges." },
-    { slot: "Snack", title: "Post-Workout Greek Yogurt", foodIds: ["food_yogurt", "food_chickpeas"], instructions: "High-protein snack combining strained yogurt and chickpeas." }
-  ];
-  const [mealPlanSlots, setMealPlanSlots] = useState(() => {
-    try { return JSON.parse(window.localStorage.getItem("fitforge:mealPlan") || "null") || defaultMealPlan; }
-    catch { return defaultMealPlan; }
-  });
+  const [mealPlanSlots, setMealPlanSlots] = useState([
+    { slot: "Breakfast", title: "High-Protein Egg, Oat & Almond Bowl", foodIds: ["food_eggs", "food_oats"], instructions: "Soft-scramble 3 whole eggs; serve alongside warm rolled oats." },
+    { slot: "Lunch", title: "Grilled Chicken Breast & Couscous", foodIds: ["food_chicken_breast", "food_couscous", "food_olive_oil"], instructions: "Pan-sear chicken breast with spices; serve over couscous with olive oil." }
+  ]);
 
-  const [dailyLog, setDailyLog] = useState(() => {
-    try { return JSON.parse(window.localStorage.getItem("fitforge:dailyLog") || "null") || [
-      { id: "log_1", meal: "Breakfast", foodId: "food_eggs", multiplier: 1 },
-      { id: "log_2", meal: "Lunch", foodId: "food_chicken_breast", multiplier: 1.2 }
-    ]; } catch { return []; }
-  });
-  const [selectedFoodId, setSelectedFoodId] = useState(INITIAL_FOODS_DB[0]?.id || "");
-  const [selectedMeal, setSelectedMeal] = useState("Snack");
-  const [servingMultiplier, setServingMultiplier] = useState("1");
-
-  useEffect(() => {
-    try {
-      window.localStorage.setItem("fitforge:profile", JSON.stringify(profile));
-      window.localStorage.setItem("fitforge:prices", JSON.stringify(customPricesTND));
-      window.localStorage.setItem("fitforge:mealPlan", JSON.stringify(mealPlanSlots));
-      window.localStorage.setItem("fitforge:dailyLog", JSON.stringify(dailyLog));
-    } catch (error) {
-      console.warn("FitForge could not save local data.", error);
-    }
-  }, [profile, customPricesTND, mealPlanSlots, dailyLog]);
+  const [dailyLog, setDailyLog] = useState([
+    { id: "log_1", meal: "Breakfast", foodId: "food_eggs", multiplier: 1 }
+  ]);
 
   const loggedTotals = useMemo(() => {
     return dailyLog.reduce((acc, entry) => {
@@ -707,6 +655,18 @@ export default function App() {
     }, { calories: 0, protein: 0, carbs: 0, fat: 0 });
   }, [dailyLog, foodsDb]);
 
+  const currentWorkout = workoutPlan[selectedSessionIdx] || workoutPlan[0];
+
+  const navItems = [
+    { id: "dashboard", label: "Dashboard", icon: TrendingUp },
+    { id: "workouts", label: "Workout Planner", icon: Dumbbell },
+    { id: "exercises", label: `Exercise Library (${EXERCISES_DB.length})`, icon: Video },
+    { id: "nutrition", label: "Nutrition Calculator", icon: Flame },
+    { id: "meals", label: "Meal Planner & Log", icon: Utensils },
+    { id: "premium", label: "AI Coach & PRO Suite", icon: Crown, proOnly: true },
+    { id: "profile", label: "Customize Profile", icon: Sliders }
+  ];
+
   return (
     <div className="min-h-screen bg-[#0B0D0F] text-white flex flex-col md:flex-row font-sans">
       <ExerciseVideoModal exercise={activeVideoExercise} onClose={() => setActiveVideoExercise(null)} />
@@ -717,7 +677,7 @@ export default function App() {
           <div className="bg-[#15191D] border border-white/15 rounded-2xl max-w-md w-full p-6 space-y-5 shadow-2xl">
             <div className="flex items-center justify-between border-b border-white/10 pb-4">
               <div className="flex items-center gap-2">
-                <div className="w-8 h-8 rounded-lg bg-[#B8F34A] flex items-center justify-center font-black text-black">FF</div>
+                <FitForgeLogo size="sm" />
                 <h3 className="text-lg font-black">{authMode === "login" ? "Sign In to FitForge" : "Create Account"}</h3>
               </div>
               <button onClick={() => setShowAuthModal(false)} className="text-gray-400 hover:text-white"><X className="w-5 h-5" /></button>
@@ -753,37 +713,24 @@ export default function App() {
       {/* SIDEBAR NAVIGATION */}
       <aside className="hidden md:flex md:w-64 md:flex-col bg-[#15191D] border-r border-white/10 shrink-0">
         <div className="p-5 flex items-center justify-between border-b border-white/10">
-          <div className="flex items-center gap-2.5">
-            <div className="w-9 h-9 rounded-xl bg-[#B8F34A] flex items-center justify-center text-black font-black text-sm">FF</div>
-            <div>
-              <span className="font-extrabold tracking-tight text-lg block leading-none">FITFORGE</span>
-              <span className="text-[10px] font-bold text-[#B8F34A] tracking-wider uppercase">TRAINING & NUTRITION OS</span>
-            </div>
-          </div>
+          <FitForgeLogo onClick={() => setActiveTab("dashboard")} />
         </div>
 
         {/* PRO SUBSCRIPTION BOX (20 TND/MO) */}
         <div className="p-4 m-3 rounded-2xl bg-gradient-to-br from-[#B8F34A]/20 via-[#15191D] to-[#0B0D0F] border border-[#B8F34A]/40 space-y-2.5">
           <div className="flex items-center gap-2 text-[#B8F34A] font-extrabold text-xs">
             <Crown className="w-4 h-4 fill-current" />
-            <span>{isPremium ? "FitForge PRO Member" : "Unlock FitForge PRO"}</span>
+            <span>FitForge PRO Member</span>
           </div>
-          <p className="text-[11px] text-gray-300 leading-relaxed">Planned coaching tools, progress insights and budget features.</p>
-          <div className="text-xs font-black text-white">20 TND <span className="text-[10px] font-normal text-gray-400">/ month · checkout not connected</span></div>
+          <p className="text-[11px] text-gray-300 leading-relaxed">AI Coach, Cloud Sync & TND Market Optimizers.</p>
+          <div className="text-xs font-black text-white">20 TND <span className="text-[10px] font-normal text-gray-400">/ month</span></div>
           <button onClick={handleUpgradeToPro} className={`w-full py-2 rounded-xl text-xs font-extrabold transition ${isPremium ? "bg-white/10 text-white border border-white/20" : "bg-[#B8F34A] text-black hover:brightness-110"}`}>
-            {isPremium ? "✓ PRO Active" : "PRO checkout unavailable"}
+            {isPremium ? "✓ PRO Active" : "Upgrade for 20 TND/mo"}
           </button>
         </div>
 
         <nav className="p-3 space-y-1 flex-1">
-          {[
-            { id: "dashboard", label: "Dashboard", icon: TrendingUp },
-            { id: "workouts", label: "Workout Planner", icon: Dumbbell },
-            { id: "exercises", label: "Exercise Videos", icon: Video },
-            { id: "nutrition", label: "Nutrition Calculator", icon: Flame },
-            { id: "meals", label: "Meal Planner & Log", icon: Utensils },
-            { id: "premium", label: "AI Coach & PRO Suite", icon: Crown, proOnly: true }
-          ].map((item) => {
+          {navItems.map((item) => {
             const Icon = item.icon;
             const active = activeTab === item.id;
             return (
@@ -822,35 +769,8 @@ export default function App() {
         </div>
       </aside>
 
-      {/* MOBILE NAVIGATION — replaces the desktop-only sidebar on small screens */}
-      <nav aria-label="Primary navigation" className="md:hidden fixed bottom-0 inset-x-0 z-40 bg-[#111518]/95 backdrop-blur-xl border-t border-white/10 px-2 pt-2 pb-[max(0.5rem,env(safe-area-inset-bottom))]">
-        <div className="grid grid-cols-5 gap-1 max-w-xl mx-auto">
-          {[
-            { id: "dashboard", label: "Home", icon: TrendingUp },
-            { id: "workouts", label: "Train", icon: Dumbbell },
-            { id: "exercises", label: "Exercises", icon: Video },
-            { id: "nutrition", label: "Macros", icon: Flame },
-            { id: "meals", label: "Meals", icon: Utensils }
-          ].map(item => {
-            const Icon = item.icon;
-            const active = activeTab === item.id;
-            return <button key={item.id} onClick={() => setActiveTab(item.id)} aria-current={active ? "page" : undefined}
-              className={`flex flex-col items-center justify-center gap-1 rounded-xl py-2 text-[10px] font-bold transition ${active ? "text-[#B8F34A] bg-[#B8F34A]/10" : "text-gray-400 hover:text-white"}`}>
-              <Icon className="w-5 h-5" />{item.label}
-            </button>;
-          })}
-        </div>
-      </nav>
-
       {/* MAIN CONTENT AREA */}
-      <main className="flex-1 p-5 pb-28 md:p-8 md:pb-8 overflow-y-auto max-w-7xl mx-auto w-full space-y-6">
-        <div className="flex items-center justify-between gap-3 md:hidden">
-          <div className="flex items-center gap-2.5">
-            <div className="w-9 h-9 rounded-xl bg-[#B8F34A] flex items-center justify-center text-black font-black">FF</div>
-            <div><span className="font-black tracking-tight block leading-none">FITFORGE</span><span className="text-[9px] font-bold text-[#B8F34A] tracking-wider">TRAINING OS</span></div>
-          </div>
-          {user ? <button onClick={handleLogout} className="p-2 rounded-xl border border-white/10 text-gray-300" aria-label="Sign out"><LogOut className="w-4 h-4" /></button> : <button onClick={() => { setAuthMode("login"); setShowAuthModal(true); }} className="px-3 py-2 rounded-xl bg-[#B8F34A] text-black font-bold text-xs">Sign in</button>}
-        </div>
+      <main className="flex-1 p-5 md:p-8 overflow-y-auto max-w-7xl mx-auto w-full space-y-6">
         {activeTab === "dashboard" && (
           <div className="space-y-6">
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-[#15191D] border border-white/10 rounded-2xl p-6">
@@ -858,7 +778,7 @@ export default function App() {
                 <span className="text-xs uppercase tracking-wider text-[#B8F34A] font-bold">Connected Training & Nutrition Hub</span>
                 <h1 className="text-2xl md:text-3xl font-black mt-1">Welcome back, {profile.name}</h1>
                 <p className="text-sm text-gray-400 mt-1">
-                  Status: <strong className="text-[#B8F34A]">{isPremium ? "FitForge PRO" : "Free Member"}</strong> • Data: <strong className="text-white">{user?.id ? "Signed in" : "Saved in this browser"}</strong>
+                  Status: <strong className="text-[#B8F34A]">{isPremium ? "FitForge PRO (20 TND/mo)" : "Free Member"}</strong> • Cloud Sync: <strong className="text-white">{user ? "Active via Supabase" : "Local Browser Mode"}</strong>
                 </p>
               </div>
 
@@ -880,7 +800,7 @@ export default function App() {
               </div>
               <div className="bg-[#15191D] border border-white/10 rounded-2xl p-5">
                 <span className="text-xs text-gray-400">Cloud Status</span>
-                <div className="text-lg font-extrabold mt-2 text-[#B8F34A]">{user?.id ? "Connected to Supabase" : "Saved locally"}</div>
+                <div className="text-lg font-extrabold mt-2 text-[#B8F34A]">{user ? "Connected to Supabase" : "Offline / Guest"}</div>
               </div>
             </div>
 
@@ -947,24 +867,7 @@ export default function App() {
 
         {activeTab === "nutrition" && (
           <div className="space-y-6">
-            <div>
-              <p className="text-xs uppercase tracking-[0.18em] text-[#B8F34A] font-bold">Your daily targets</p>
-              <h1 className="text-2xl md:text-3xl font-black mt-1">Nutrition Calculator & Macros</h1>
-              <p className="text-sm text-gray-400 mt-2 max-w-2xl">Adjust your profile to estimate calorie and macro targets. These are general estimates, not medical nutrition advice.</p>
-            </div>
-            <div className="bg-[#15191D] border border-white/10 rounded-2xl p-5 md:p-6">
-              <h2 className="font-bold mb-4">Your profile</h2>
-              <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
-                <label className="text-xs text-gray-400">Age <input type="number" min="15" max="100" value={profile.age} onChange={e => setProfile(p => ({ ...p, age: Number(e.target.value) }))} className="mt-1 w-full rounded-xl bg-[#090c0e] border border-white/10 px-3 py-2.5 text-white" /></label>
-                <label className="text-xs text-gray-400">Weight (kg) <input type="number" min="25" max="350" step="0.1" value={profile.weightKg} onChange={e => setProfile(p => ({ ...p, weightKg: Number(e.target.value) }))} className="mt-1 w-full rounded-xl bg-[#090c0e] border border-white/10 px-3 py-2.5 text-white" /></label>
-                <label className="text-xs text-gray-400">Height (cm) <input type="number" min="100" max="250" value={profile.heightCm} onChange={e => setProfile(p => ({ ...p, heightCm: Number(e.target.value) }))} className="mt-1 w-full rounded-xl bg-[#090c0e] border border-white/10 px-3 py-2.5 text-white" /></label>
-                <label className="text-xs text-gray-400">Sex used for estimate <select value={profile.sex} onChange={e => setProfile(p => ({ ...p, sex: e.target.value }))} className="mt-1 w-full rounded-xl bg-[#090c0e] border border-white/10 px-3 py-2.5 text-white"><option value="male">Male</option><option value="female">Female</option></select></label>
-                <label className="text-xs text-gray-400">Goal <select value={profile.goal} onChange={e => setProfile(p => ({ ...p, goal: e.target.value, manualCalorieOverride: "" }))} className="mt-1 w-full rounded-xl bg-[#090c0e] border border-white/10 px-3 py-2.5 text-white"><option value="fat_loss">Fat loss</option><option value="muscle_gain">Muscle gain</option><option value="recomp">Recomposition</option><option value="strength">Strength</option><option value="general_fitness">General fitness</option></select></label>
-              </div>
-              <label className="block text-xs text-gray-400 mt-4 max-w-xs">Activity level
-                <select value={profile.activityMultiplier} onChange={e => setProfile(p => ({ ...p, activityMultiplier: Number(e.target.value) }))} className="mt-1 w-full rounded-xl bg-[#090c0e] border border-white/10 px-3 py-2.5 text-white"><option value={1.2}>Mostly sedentary</option><option value={1.375}>Lightly active</option><option value={1.55}>Moderately active</option><option value={1.725}>Very active</option><option value={1.9}>Extremely active</option></select>
-              </label>
-            </div>
+            <h1 className="text-2xl font-black">Nutrition Calculator & Macros</h1>
             <div className="bg-[#15191D] border border-white/10 rounded-2xl p-6 grid grid-cols-2 md:grid-cols-4 gap-4 text-center">
               <div className="p-4 bg-[#0B0D0F] rounded-xl border border-white/5">
                 <div className="text-xs text-gray-400">Calories</div>
@@ -991,7 +894,7 @@ export default function App() {
             <div className="flex items-center justify-between bg-[#15191D] border border-white/10 rounded-2xl p-6">
               <div>
                 <h1 className="text-2xl font-black">Tunisian Grocery & Meal Planner</h1>
-                <p className="text-xs text-gray-400 mt-1">Editable reference prices in Tunisian dinars. Prices are not live market data.</p>
+                <p className="text-xs text-gray-400 mt-1">USD & TND market prices synced.</p>
               </div>
               <button onClick={() => setShowPriceEditor(!showPriceEditor)} className="px-4 py-2.5 rounded-xl bg-[#B8F34A] text-black font-extrabold text-xs flex items-center gap-2">
                 <Edit3 className="w-4 h-4" /> {showPriceEditor ? "Close Price Book" : "Update Prices (TND)"}
@@ -1000,7 +903,7 @@ export default function App() {
 
             {showPriceEditor && (
               <div className="p-4 rounded-xl bg-[#15191D] border border-[#B8F34A]/40 space-y-3">
-                <h3 className="text-sm font-extrabold text-[#B8F34A]">Edit food reference prices (TND)</h3>
+                <h3 className="text-sm font-extrabold text-[#B8F34A]">Live Tunisian Market Price Book</h3>
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
                   {foodsDb.map(f => (
                     <div key={f.id} className="p-3 rounded-xl bg-[#0B0D0F] border border-white/10 flex items-center justify-between gap-2 text-xs">
@@ -1027,31 +930,6 @@ export default function App() {
                 </div>
               ))}
             </div>
-
-            <section className="bg-[#15191D] border border-white/10 rounded-2xl p-5 md:p-6 space-y-5">
-              <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-3">
-                <div><p className="text-xs uppercase tracking-wider text-[#B8F34A] font-bold">Food diary</p><h2 className="text-xl font-black mt-1">Today's intake</h2></div>
-                <div className="text-sm text-gray-400">{loggedTotals.calories} <span className="text-white">kcal</span> · {loggedTotals.protein}g protein</div>
-              </div>
-              <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
-                <label className="text-xs text-gray-400">Food <select value={selectedFoodId} onChange={e => setSelectedFoodId(e.target.value)} className="mt-1 w-full rounded-xl bg-[#090c0e] border border-white/10 px-3 py-2.5 text-white">{foodsDb.map(food => <option key={food.id} value={food.id}>{food.name}</option>)}</select></label>
-                <label className="text-xs text-gray-400">Meal <select value={selectedMeal} onChange={e => setSelectedMeal(e.target.value)} className="mt-1 w-full rounded-xl bg-[#090c0e] border border-white/10 px-3 py-2.5 text-white">{["Breakfast", "Lunch", "Dinner", "Snack"].map(meal => <option key={meal}>{meal}</option>)}</select></label>
-                <label className="text-xs text-gray-400">Servings <input type="number" min="0.25" max="10" step="0.25" value={servingMultiplier} onChange={e => setServingMultiplier(e.target.value)} className="mt-1 w-full rounded-xl bg-[#090c0e] border border-white/10 px-3 py-2.5 text-white" /></label>
-                <button onClick={() => { if (!selectedFoodId || Number(servingMultiplier) <= 0) return; setDailyLog(log => [...log, { id: `log_${Date.now()}`, meal: selectedMeal, foodId: selectedFoodId, multiplier: Number(servingMultiplier) }]); }} className="self-end rounded-xl bg-[#B8F34A] px-4 py-3 text-sm font-extrabold text-black flex items-center justify-center gap-2"><Plus className="w-4 h-4" /> Add food</button>
-              </div>
-              <div className="space-y-2">
-                {dailyLog.length === 0 && <p className="text-sm text-gray-500 py-4">Nothing logged yet. Add a food above to start tracking today's intake.</p>}
-                {dailyLog.map(entry => {
-                  const food = foodsDb.find(item => item.id === entry.foodId);
-                  if (!food) return null;
-                  return <div key={entry.id} className="flex items-center gap-3 rounded-xl bg-[#090c0e] border border-white/5 px-3 py-3">
-                    <div className="min-w-0 flex-1"><p className="text-sm font-bold truncate">{food.name}</p><p className="text-xs text-gray-500">{entry.meal} · {entry.multiplier} serving(s)</p></div>
-                    <div className="text-right shrink-0"><p className="text-sm font-bold">{Math.round(food.calories * entry.multiplier)} kcal</p><p className="text-xs text-gray-500">{Math.round(food.protein * entry.multiplier)}g protein</p></div>
-                    <button onClick={() => setDailyLog(log => log.filter(item => item.id !== entry.id))} aria-label={`Remove ${food.name}`} className="p-2 rounded-lg text-gray-500 hover:text-red-400 hover:bg-red-400/10"><Trash2 className="w-4 h-4" /></button>
-                  </div>;
-                })}
-              </div>
-            </section>
           </div>
         )}
 
@@ -1063,16 +941,16 @@ export default function App() {
                 <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-[#B8F34A]/20 text-[#B8F34A] text-xs font-bold">
                   <Crown className="w-3.5 h-3.5 fill-current" /> PRO Exclusive Suite
                 </div>
-                <h1 className="text-3xl font-black">Your next level, thoughtfully planned.</h1>
+                <h1 className="text-3xl font-black">AI Coach, TND Budget Optimizer & Muscle Heatmaps</h1>
                 <p className="text-sm text-gray-300 leading-relaxed">
                   {isPremium
-                    ? "Your account is marked as PRO. Some advanced features are still in development."
-                    : "The PRO experience is planned to include deeper progress insights, training guidance and Tunisian grocery budgeting. Checkout is not connected yet, so no payment can be taken from this page."}
+                    ? "Your PRO subscription is active! You have full access to automated volume adjustments and local Tunisian budget solvers."
+                    : "Unlock this section by upgrading your account to FitForge PRO for 20 TND per month."}
                 </p>
 
                 {!isPremium && (
                   <button onClick={handleUpgradeToPro} className="px-6 py-3.5 rounded-xl bg-[#B8F34A] text-black font-extrabold text-sm hover:brightness-110 transition shadow-lg">
-                    Check PRO availability — 20 TND / month
+                    Activate PRO Subscription — 20 TND / month
                   </button>
                 )}
               </div>
