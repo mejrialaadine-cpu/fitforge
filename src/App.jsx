@@ -30,11 +30,72 @@ import {
   RotateCcw,
   Download,
   AlertTriangle,
-  ExternalLink
+  ExternalLink,
+  Lock,
+  Crown,
+  LogOut,
+  Mail,
+  Key
 } from "lucide-react";
+import { supabase } from "./supabaseClient";
 
 // ============================================================================
-// 1. DETERMINISTIC ALGORITHMS & UNIT-TESTABLE PURE FUNCTIONS
+// 0. PROFESSIONAL VECTOR BRAND EMBLEM (FITFORGE CUSTOM SVG LOGO)
+// ============================================================================
+
+function FitForgeLogo({ size = "md", onClick }) {
+  const dimensions = size === "lg" ? "w-11 h-11" : "w-9 h-9";
+  return (
+    <div
+      onClick={onClick}
+      className="inline-flex items-center gap-3 cursor-pointer group select-none"
+    >
+      <div
+        className={`${dimensions} relative rounded-xl bg-[#0B0D0F] border border-[#B8F34A]/50 flex items-center justify-center shadow-lg shadow-[#B8F34A]/10 group-hover:border-[#B8F34A] transition`}
+      >
+        <svg viewBox="0 0 48 48" className="w-7 h-7">
+          <defs>
+            <linearGradient id="forgeLimeGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+              <stop offset="0%" stopColor="#D4FF70" />
+              <stop offset="100%" stopColor="#9EE022" />
+            </linearGradient>
+          </defs>
+          <polygon
+            points="24,3 43,13 43,35 24,45 5,35 5,13"
+            fill="#15191D"
+            stroke="url(#forgeLimeGrad)"
+            strokeWidth="2.5"
+          />
+          <rect x="9" y="17" width="3.5" height="14" rx="1.5" fill="url(#forgeLimeGrad)" />
+          <rect x="13.5" y="19.5" width="2.5" height="9" rx="1" fill="#ffffff" />
+          <rect x="35.5" y="17" width="3.5" height="14" rx="1.5" fill="url(#forgeLimeGrad)" />
+          <rect x="32" y="19.5" width="2.5" height="9" rx="1" fill="#ffffff" />
+          <path
+            d="M16,22.5 L32,22.5 L29,26.5 L27,32 L21,32 L19,26.5 Z"
+            fill="url(#forgeLimeGrad)"
+          />
+          <line x1="12" y1="24" x2="36" y2="24" stroke="#0B0D0F" strokeWidth="2" />
+        </svg>
+      </div>
+      <div>
+        <div className="flex items-center gap-1.5">
+          <span className="font-black tracking-tight text-lg text-white leading-none">
+            FIT<span className="text-[#B8F34A]">FORGE</span>
+          </span>
+          <span className="text-[9px] font-extrabold px-1.5 py-0.5 rounded bg-[#B8F34A]/15 text-[#B8F34A] border border-[#B8F34A]/30">
+            PRO
+          </span>
+        </div>
+        <span className="block text-[10px] font-semibold text-gray-400 tracking-widest uppercase mt-0.5">
+          TRAINING & NUTRITION OS
+        </span>
+      </div>
+    </div>
+  );
+}
+
+// ============================================================================
+// 1. PURE DETERMINISTIC CALCULATIONS
 // ============================================================================
 
 export function calculateBMI(weightKg, heightCm) {
@@ -45,8 +106,7 @@ export function calculateBMI(weightKg, heightCm) {
 
 export function calculateBMR(weightKg, heightCm, age, sex) {
   if (!weightKg || !heightCm || !age) return 0;
-  const base =
-    10 * Number(weightKg) + 6.25 * Number(heightCm) - 5 * Number(age);
+  const base = 10 * Number(weightKg) + 6.25 * Number(heightCm) - 5 * Number(age);
   return Math.round(sex === "female" ? base - 161 : base + 5);
 }
 
@@ -55,16 +115,7 @@ export function calculateTDEE(bmr, activityMultiplier) {
 }
 
 export function calculateNutritionTargets(profile) {
-  const {
-    weightKg,
-    heightCm,
-    age,
-    sex,
-    activityMultiplier,
-    goal,
-    manualCalorieOverride
-  } = profile;
-
+  const { weightKg, heightCm, age, sex, activityMultiplier, goal, manualCalorieOverride } = profile;
   const bmi = calculateBMI(weightKg, heightCm);
   const bmr = calculateBMR(weightKg, heightCm, age, sex);
   const tdee = calculateTDEE(bmr, activityMultiplier);
@@ -74,16 +125,8 @@ export function calculateNutritionTargets(profile) {
   if (goal === "muscle_gain") calorieAdjustment = 250;
   if (goal === "recomp") calorieAdjustment = -150;
   if (goal === "strength") calorieAdjustment = 150;
-  if (goal === "general_fitness") calorieAdjustment = 0;
 
-  const rawCalories = manualCalorieOverride
-    ? Number(manualCalorieOverride)
-    : tdee + calorieAdjustment;
-
-  const minSafeCalories = sex === "female" ? 1250 : 1500;
-  const isUnreasonablyLow = rawCalories < minSafeCalories;
-  const isUnreasonablyHigh = rawCalories > tdee + 900;
-
+  const rawCalories = manualCalorieOverride ? Number(manualCalorieOverride) : tdee + calorieAdjustment;
   const targetCalories = Math.max(1000, rawCalories);
 
   const proteinPerKg = goal === "fat_loss" || goal === "recomp" ? 2.0 : 1.8;
@@ -91,69 +134,22 @@ export function calculateNutritionTargets(profile) {
 
   const proteinGrams = Math.round(weightKg * proteinPerKg);
   const fatGrams = Math.round(weightKg * fatPerKg);
-
-  const proteinCalories = proteinGrams * 4;
-  const fatCalories = fatGrams * 9;
-  const remainingCalories = Math.max(
-    0,
-    targetCalories - (proteinCalories + fatCalories)
-  );
+  const remainingCalories = Math.max(0, targetCalories - (proteinGrams * 4 + fatGrams * 9));
   const carbGrams = Math.round(remainingCalories / 4);
-
-  const reconciledCalories = proteinGrams * 4 + carbGrams * 4 + fatGrams * 9;
 
   return {
     bmi,
     bmr,
     tdee,
-    calorieAdjustment,
-    dailyCalories: reconciledCalories,
+    dailyCalories: proteinGrams * 4 + carbGrams * 4 + fatGrams * 9,
     proteinGrams,
     carbGrams,
-    fatGrams,
-    isUnreasonablyLow,
-    isUnreasonablyHigh
-  };
-}
-
-export function evaluateProgressiveOverload(sets, repRangeMax) {
-  if (!sets || sets.length === 0) {
-    return {
-      readyForIncrease: false,
-      suggestion: "Log all working sets to unlock next-session load guidance."
-    };
-  }
-  const workingSets = sets.filter((s) => !s.isWarmup && s.completed);
-  if (workingSets.length === 0) {
-    return {
-      readyForIncrease: false,
-      suggestion:
-        "Mark working sets as completed to evaluate progressive overload."
-    };
-  }
-  const allHitTopRange = workingSets.every(
-    (s) => Number(s.reps) >= repRangeMax
-  );
-  const maxWeight = Math.max(...workingSets.map((s) => Number(s.weight) || 0));
-
-  if (allHitTopRange) {
-    return {
-      readyForIncrease: true,
-      nextWeight: maxWeight + 2.5,
-      suggestion: `Target achieved! All ${workingSets.length} working sets hit >= ${repRangeMax} reps. Increase load to ${
-        maxWeight + 2.5
-      } kg next session.`
-    };
-  }
-  return {
-    readyForIncrease: false,
-    nextWeight: maxWeight,
-    suggestion: `Hold load at ${maxWeight} kg next session and build reps toward ${repRangeMax} across all working sets.`
+    fatGrams
   };
 }
 
 // ============================================================================
-// 2. CURATED EXERCISE DATASET WITH 60FPS BIOMECHANICAL ANIMATION PROFILES
+// 2. EXERCISE DATABASE & FOODS
 // ============================================================================
 
 const EXERCISES_DB = [
@@ -161,1539 +157,46 @@ const EXERCISES_DB = [
     id: "ex_bench_press",
     name: "Barbell Bench Press",
     muscleGroup: "Chest",
-    secondaryMuscles: ["Triceps", "Anterior Deltoid"],
     equipment: "Full Gym",
-    difficulty: "Intermediate",
-    repRange: [6, 10],
-    defaultSets: 3,
-    restSeconds: 120,
-    rir: "1-2 RIR",
-    jointFlags: ["shoulder"],
-    alternativeId: "ex_db_floor_press",
-    motionType: "bench_press",
-    thumbnailUrl:
-      "https://images.unsplash.com/photo-1571019614242-c5c5dee9f50b?auto=format&fit=crop&w=900&q=80",
-    videoSearchQuery: "Barbell Bench Press Proper Form Tutorial",
-    youtubeEmbedId: "vcBig73ojpE",
-    cues: [
-      "Retract and depress your shoulder blades firmly into the bench pad.",
-      "Plant feet flat on the floor to maintain stable lower-body drive.",
-      "Lower the bar under control to your mid-chest with elbows tucked at ~45°.",
-      "Press slightly back toward the rack while keeping wrists stacked straight."
-    ]
-  },
-  {
-    id: "ex_db_floor_press",
-    name: "Dumbbell Neutral-Grip Press",
-    muscleGroup: "Chest",
-    secondaryMuscles: ["Triceps", "Front Delts"],
-    equipment: "Dumbbells",
-    difficulty: "Beginner",
-    repRange: [8, 12],
-    defaultSets: 3,
-    restSeconds: 90,
-    rir: "2 RIR",
-    jointFlags: [],
-    alternativeId: "ex_pushup",
-    motionType: "bench_press",
-    thumbnailUrl:
-      "https://images.unsplash.com/photo-1583454110551-21f2fa2afe61?auto=format&fit=crop&w=900&q=80",
-    videoSearchQuery: "Dumbbell Bench Press Form Guide",
-    youtubeEmbedId: "VmB1G1K7v94",
-    cues: [
-      "Use a neutral or 45-degree grip to reduce shoulder stress.",
-      "Control the lowering phase for a full 2 seconds.",
-      "Press dumbbells up smoothly without clanging them together at lockout."
-    ]
-  },
-  {
-    id: "ex_pushup",
-    name: "Tempo Push-Up",
-    muscleGroup: "Chest",
-    secondaryMuscles: ["Core", "Triceps", "Shoulders"],
-    equipment: "Bodyweight",
-    difficulty: "Beginner",
-    repRange: [10, 15],
-    defaultSets: 3,
-    restSeconds: 75,
-    rir: "1-2 RIR",
-    jointFlags: [],
-    alternativeId: "ex_db_floor_press",
-    motionType: "pushup",
-    thumbnailUrl:
-      "https://images.unsplash.com/photo-1598971639058-fab3c3109a00?auto=format&fit=crop&w=900&q=80",
-    videoSearchQuery: "Proper Push Up Form Tutorial",
-    youtubeEmbedId: "IODxDxX7oi4",
-    cues: [
-      "Brace your glutes and abs so your body forms a straight plank line.",
-      "Track elbows back at a 45-degree angle rather than flaring to 90 degrees.",
-      "Touch chest lightly to the floor and push the ground away explosively."
-    ]
+    thumbnailUrl: "https://images.unsplash.com/photo-1571019614242-c5c5dee9f50b?auto=format&fit=crop&w=900&q=80",
+    cues: ["Retract shoulder blades into pad.", "Plant feet flat on the floor.", "Lower bar to mid-chest."]
   },
   {
     id: "ex_lat_pulldown",
     name: "Wide-Grip Lat Pulldown",
     muscleGroup: "Back",
-    secondaryMuscles: ["Biceps", "Rear Delts"],
     equipment: "Full Gym",
-    difficulty: "Beginner",
-    repRange: [8, 12],
-    defaultSets: 3,
-    restSeconds: 90,
-    rir: "1-2 RIR",
-    jointFlags: [],
-    alternativeId: "ex_db_row",
-    motionType: "lat_pulldown",
-    thumbnailUrl:
-      "https://images.unsplash.com/photo-1534438327276-14e5300c3a48?auto=format&fit=crop&w=900&q=80",
-    videoSearchQuery: "Lat Pulldown Form Technique",
-    youtubeEmbedId: "CAwf7n6Luuc",
-    cues: [
-      "Secure thighs snugly under the pad and keep your chest tall.",
-      "Initiate the pull by driving your elbows down toward your hips.",
-      "Control the bar all the way up into a full lat stretch."
-    ]
-  },
-  {
-    id: "ex_db_row",
-    name: "Single-Arm Dumbbell Row",
-    muscleGroup: "Back",
-    secondaryMuscles: ["Lats", "Rhomboids", "Biceps"],
-    equipment: "Dumbbells",
-    difficulty: "Beginner",
-    repRange: [8, 12],
-    defaultSets: 3,
-    restSeconds: 90,
-    rir: "1-2 RIR",
-    jointFlags: [],
-    alternativeId: "ex_lat_pulldown",
-    motionType: "row",
-    thumbnailUrl:
-      "https://images.unsplash.com/photo-1605296867304-46d5465a13f1?auto=format&fit=crop&w=900&q=80",
-    videoSearchQuery: "Single Arm Dumbbell Row Proper Form",
-    youtubeEmbedId: "pYcpY20QaE8",
-    cues: [
-      "Support your non-working hand on a bench with a flat, neutral spine.",
-      "Pull the dumbbell in an arc toward your hip pocket, not straight to your shoulder.",
-      "Pause briefly at the top before lowering slowly."
-    ]
+    thumbnailUrl: "https://images.unsplash.com/photo-1534438327276-14e5300c3a48?auto=format&fit=crop&w=900&q=80",
+    cues: ["Keep chest tall.", "Drive elbows down toward hips."]
   },
   {
     id: "ex_barbell_squat",
     name: "Barbell Back Squat",
     muscleGroup: "Legs",
-    secondaryMuscles: ["Quadriceps", "Glutes", "Core"],
     equipment: "Full Gym",
-    difficulty: "Intermediate",
-    repRange: [6, 10],
-    defaultSets: 3,
-    restSeconds: 150,
-    rir: "2 RIR",
-    jointFlags: ["knee", "lower_back"],
-    alternativeId: "ex_goblet_squat",
-    motionType: "squat",
-    thumbnailUrl:
-      "https://images.unsplash.com/photo-1574680096145-d05b474e2155?auto=format&fit=crop&w=900&q=80",
-    videoSearchQuery: "How to Barbell Back Squat Proper Form",
-    youtubeEmbedId: "ultWZbUMPL8",
-    cues: [
-      "Take a deep 360-degree breath into your core before descending.",
-      "Sit down between your hips while tracking knees in line with your toes.",
-      "Hit parallel depth with a neutral spine and drive forcefully out of the hole."
-    ]
-  },
-  {
-    id: "ex_goblet_squat",
-    name: "Heel-Elevated Goblet Squat",
-    muscleGroup: "Legs",
-    secondaryMuscles: ["Quadriceps", "Glutes", "Core"],
-    equipment: "Dumbbells",
-    difficulty: "Beginner",
-    repRange: [10, 14],
-    defaultSets: 3,
-    restSeconds: 90,
-    rir: "1-2 RIR",
-    jointFlags: [],
-    alternativeId: "ex_glute_bridge",
-    motionType: "squat",
-    thumbnailUrl:
-      "https://images.unsplash.com/photo-1517838277536-f5f99be501cd?auto=format&fit=crop&w=900&q=80",
-    videoSearchQuery: "Goblet Squat Form Tutorial",
-    youtubeEmbedId: "MeIiIdhvXT4",
-    cues: [
-      "Cup the top end of a dumbbell tightly against your sternum.",
-      "Keep torso upright and descend smoothly with knees tracking over toes.",
-      "Drive through your mid-foot and squeeze glutes at the top."
-    ]
-  },
-  {
-    id: "ex_rdl",
-    name: "Romanian Deadlift (RDL)",
-    muscleGroup: "Legs",
-    secondaryMuscles: ["Hamstrings", "Glutes", "Erectors"],
-    equipment: "Dumbbells",
-    difficulty: "Intermediate",
-    repRange: [8, 12],
-    defaultSets: 3,
-    restSeconds: 120,
-    rir: "2 RIR",
-    jointFlags: ["lower_back"],
-    alternativeId: "ex_glute_bridge",
-    motionType: "hinge",
-    thumbnailUrl:
-      "https://images.unsplash.com/photo-1541534741688-6078c6bfb5c5?auto=format&fit=crop&w=900&q=80",
-    videoSearchQuery: "Romanian Deadlift Form Guide",
-    youtubeEmbedId: "JCXUYuzwNrM",
-    cues: [
-      "Unlock knees slightly (15 degrees) and freeze that knee angle.",
-      "Push your hips straight back toward the wall behind you while keeping weights close to thighs.",
-      "Stop at mid-shin once hips stop moving back, then drive hips forward."
-    ]
-  },
-  {
-    id: "ex_glute_bridge",
-    name: "Weighted Hip Thrust / Glute Bridge",
-    muscleGroup: "Glutes",
-    secondaryMuscles: ["Hamstrings", "Core"],
-    equipment: "Bodyweight",
-    difficulty: "Beginner",
-    repRange: [12, 15],
-    defaultSets: 3,
-    restSeconds: 75,
-    rir: "1-2 RIR",
-    jointFlags: [],
-    alternativeId: "ex_goblet_squat",
-    motionType: "hinge",
-    thumbnailUrl:
-      "https://images.unsplash.com/photo-1518611012118-696072aa579a?auto=format&fit=crop&w=900&q=80",
-    videoSearchQuery: "Hip Thrust Glute Bridge Form Tutorial",
-    youtubeEmbedId: "OUgsJ8-Vi0E",
-    cues: [
-      "Position shins vertical at the top of the bridge with heels planted.",
-      "Tuck chin slightly and keep ribs down so your lower back does not hyperextend.",
-      "Hold peak glute contraction for 1 full second at the top of every rep."
-    ]
+    thumbnailUrl: "https://images.unsplash.com/photo-1574680096145-d05b474e2155?auto=format&fit=crop&w=900&q=80",
+    cues: ["Take a 360° breath into core.", "Sit down between hips."]
   },
   {
     id: "ex_ohp",
     name: "Seated Dumbbell Overhead Press",
     muscleGroup: "Shoulders",
-    secondaryMuscles: ["Triceps", "Upper Chest"],
     equipment: "Dumbbells",
-    difficulty: "Beginner",
-    repRange: [8, 12],
-    defaultSets: 3,
-    restSeconds: 90,
-    rir: "1-2 RIR",
-    jointFlags: ["shoulder"],
-    alternativeId: "ex_lateral_raise",
-    motionType: "overhead_press",
-    thumbnailUrl:
-      "https://images.unsplash.com/photo-1532029837206-abbe2b7620e3?auto=format&fit=crop&w=900&q=80",
-    videoSearchQuery: "Seated Dumbbell Shoulder Press Form",
-    youtubeEmbedId: "qEwKCR5JCog",
-    cues: [
-      "Press dumbbells in the scapular plane (elbows tucked roughly 30 degrees forward).",
-      "Keep ribcage stacked over pelvis without overarching your lower back.",
-      "Lower smoothly until dumbbells reach chin or ear level."
-    ]
-  },
-  {
-    id: "ex_lateral_raise",
-    name: "Dumbbell Lateral Raise",
-    muscleGroup: "Shoulders",
-    secondaryMuscles: ["Lateral Deltoid", "Upper Traps"],
-    equipment: "Dumbbells",
-    difficulty: "Beginner",
-    repRange: [12, 15],
-    defaultSets: 3,
-    restSeconds: 60,
-    rir: "1 RIR",
-    jointFlags: [],
-    alternativeId: "ex_ohp",
-    motionType: "overhead_press",
-    thumbnailUrl:
-      "https://images.unsplash.com/photo-1581009146145-b5ef050c2e1e?auto=format&fit=crop&w=900&q=80",
-    videoSearchQuery: "Dumbbell Lateral Raise Proper Form",
-    youtubeEmbedId: "3VcKaXpzqRo",
-    cues: [
-      "Hinge forward slightly (10 degrees) and sweep arms out and slightly forward.",
-      "Push the dumbbells away toward the side walls rather than shrugging up.",
-      "Control the descent to maintain constant tension on the side delts."
-    ]
-  },
-  {
-    id: "ex_bicep_curl",
-    name: "Incline Dumbbell Bicep Curl",
-    muscleGroup: "Arms",
-    secondaryMuscles: ["Biceps Brachii", "Brachialis", "Forearms"],
-    equipment: "Dumbbells",
-    difficulty: "Beginner",
-    repRange: [10, 14],
-    defaultSets: 3,
-    restSeconds: 60,
-    rir: "1 RIR",
-    jointFlags: [],
-    alternativeId: "ex_db_row",
-    motionType: "curl",
-    thumbnailUrl:
-      "https://images.unsplash.com/photo-1581009137042-c552e485697a?auto=format&fit=crop&w=900&q=80",
-    videoSearchQuery: "Incline Dumbbell Curl Proper Form",
-    youtubeEmbedId: "soxrZlIl35U",
-    cues: [
-      "Keep upper arms pinned behind your torso to maximize the long-head stretch.",
-      "Supinate wrists fully as you curl up.",
-      "Lower all the way to full elbow extension on every rep."
-    ]
-  },
-  {
-    id: "ex_calf_raise",
-    name: "Standing Weighted Calf Raise",
-    muscleGroup: "Calves",
-    secondaryMuscles: ["Gastrocnemius", "Soleus"],
-    equipment: "Dumbbells",
-    difficulty: "Beginner",
-    repRange: [12, 16],
-    defaultSets: 3,
-    restSeconds: 60,
-    rir: "1 RIR",
-    jointFlags: [],
-    alternativeId: "ex_goblet_squat",
-    motionType: "squat",
-    thumbnailUrl:
-      "https://images.unsplash.com/photo-1517963879433-6ad2b056d712?auto=format&fit=crop&w=900&q=80",
-    videoSearchQuery: "Standing Calf Raise Proper Form",
-    youtubeEmbedId: "gwLzBJYoWlI",
-    cues: [
-      "Pause for 2 full seconds in the bottom stretch position to eliminate Achilles bounce.",
-      "Drive all the way up onto the ball of your big toe.",
-      "Hold peak contraction for 1 second at the top."
-    ]
-  },
-  {
-    id: "ex_plank",
-    name: "RKC Hard-Style Core Plank",
-    muscleGroup: "Core",
-    secondaryMuscles: ["Rectus Abdominis", "Obliques", "Glutes"],
-    equipment: "Bodyweight",
-    difficulty: "Beginner",
-    repRange: [10, 15],
-    defaultSets: 3,
-    restSeconds: 60,
-    rir: "1 RIR",
-    jointFlags: [],
-    alternativeId: "ex_pushup",
-    motionType: "pushup",
-    thumbnailUrl:
-      "https://images.unsplash.com/photo-1566241440091-ec10de8db2e1?auto=format&fit=crop&w=900&q=80",
-    videoSearchQuery: "RKC Plank Proper Form Core",
-    youtubeEmbedId: "ASdvN_XEl_c",
-    cues: [
-      "Place elbows under shoulders and actively pull elbows toward your toes.",
-      "Squeeze quads and glutes hard while exhaling forcefully on each breath count.",
-      "Maintain a posterior pelvic tilt so your lower back never sags."
-    ]
+    thumbnailUrl: "https://images.unsplash.com/photo-1532029837206-abbe2b7620e3?auto=format&fit=crop&w=900&q=80",
+    cues: ["Press in scapular plane.", "Keep ribcage stacked over pelvis."]
   }
 ];
-
-// ============================================================================
-// 3. TUNISIAN & GLOBAL USDA-REFERENCED FOOD DATABASE (WITH LIVE MARKET PRICES)
-// ============================================================================
 
 const INITIAL_FOODS_DB = [
-  {
-    id: "food_chicken_breast",
-    name: "Chicken Breast (Escalope de Poulet, Raw)",
-    basis: "Raw edible portion",
-    servingGrams: 150,
-    calories: 180,
-    protein: 34,
-    carbs: 0,
-    fat: 3.9,
-    costTND: 3.2,
-    costUSD: 1.05,
-    category: "Meat & Poultry",
-    role: "protein",
-    allergens: [],
-    isVegetarian: false,
-    source: "USDA FDC #171077",
-    lastVerified: "Baseline Oct 2026"
-  },
-  {
-    id: "food_sardines",
-    name: "Fresh Grilled Sardines (Sardine Grillée)",
-    basis: "Cooked edible portion",
-    servingGrams: 150,
-    calories: 310,
-    protein: 37,
-    carbs: 0,
-    fat: 17,
-    costTND: 2.1,
-    costUSD: 0.7,
-    category: "Fish & Seafood",
-    role: "protein",
-    allergens: ["fish"],
-    isVegetarian: false,
-    source: "USDA FDC #175139",
-    lastVerified: "Baseline Oct 2026"
-  },
-  {
-    id: "food_tuna",
-    name: "Canned Tuna in Olive Oil (Drained)",
-    basis: "Drained ready-to-eat",
-    servingGrams: 120,
-    calories: 238,
-    protein: 35,
-    carbs: 0,
-    fat: 9.8,
-    costTND: 3.8,
-    costUSD: 1.25,
-    category: "Fish & Seafood",
-    role: "protein",
-    allergens: ["fish"],
-    isVegetarian: false,
-    source: "USDA FDC #175158",
-    lastVerified: "Baseline Oct 2026"
-  },
-  {
-    id: "food_eggs",
-    name: "Whole Chicken Eggs (3 Large / 150g)",
-    basis: "Raw edible portion",
-    servingGrams: 150,
-    calories: 215,
-    protein: 19,
-    carbs: 1.1,
-    fat: 14.3,
-    costTND: 1.35,
-    costUSD: 0.45,
-    category: "Eggs & Dairy",
-    role: "protein",
-    allergens: ["eggs"],
-    isVegetarian: true,
-    source: "USDA FDC #748967",
-    lastVerified: "Baseline Oct 2026"
-  },
-  {
-    id: "food_lentils",
-    name: "Cooked Brown Lentils (Adas)",
-    basis: "Boiled cooked weight",
-    servingGrams: 200,
-    calories: 232,
-    protein: 18,
-    carbs: 40,
-    fat: 0.8,
-    costTND: 1.1,
-    costUSD: 0.35,
-    category: "Legumes",
-    role: "protein",
-    allergens: [],
-    isVegetarian: true,
-    source: "USDA FDC #172421",
-    lastVerified: "Baseline Oct 2026"
-  },
-  {
-    id: "food_chickpeas",
-    name: "Cooked Chickpeas (Homs / Lablabi Base)",
-    basis: "Boiled cooked weight",
-    servingGrams: 200,
-    calories: 328,
-    protein: 17.7,
-    carbs: 54.8,
-    fat: 5.2,
-    costTND: 1.3,
-    costUSD: 0.42,
-    category: "Legumes",
-    role: "carb",
-    allergens: [],
-    isVegetarian: true,
-    source: "USDA FDC #173757",
-    lastVerified: "Baseline Oct 2026"
-  },
-  {
-    id: "food_couscous",
-    name: "Steamed Whole-Wheat Couscous (Cooked)",
-    basis: "Steamed cooked weight",
-    servingGrams: 220,
-    calories: 246,
-    protein: 8.4,
-    carbs: 51,
-    fat: 0.4,
-    costTND: 0.85,
-    costUSD: 0.28,
-    category: "Grains & Starches",
-    role: "carb",
-    allergens: ["gluten"],
-    isVegetarian: true,
-    source: "USDA FDC #169700",
-    lastVerified: "Baseline Oct 2026"
-  },
-  {
-    id: "food_rice",
-    name: "Cooked White Basmati Rice",
-    basis: "Boiled cooked weight",
-    servingGrams: 220,
-    calories: 286,
-    protein: 6,
-    carbs: 62,
-    fat: 0.6,
-    costTND: 1.0,
-    costUSD: 0.32,
-    category: "Grains & Starches",
-    role: "carb",
-    allergens: [],
-    isVegetarian: true,
-    source: "USDA FDC #169756",
-    lastVerified: "Baseline Oct 2026"
-  },
-  {
-    id: "food_oats",
-    name: "Rolled Oats (Flocons d'Avoine, Dry)",
-    basis: "Dry weight",
-    servingGrams: 80,
-    calories: 311,
-    protein: 10.5,
-    carbs: 54,
-    fat: 5.5,
-    costTND: 1.15,
-    costUSD: 0.38,
-    category: "Grains & Starches",
-    role: "carb",
-    allergens: ["gluten"],
-    isVegetarian: true,
-    source: "USDA FDC #173904",
-    lastVerified: "Baseline Oct 2026"
-  },
-  {
-    id: "food_potatoes",
-    name: "Oven-Baked Potatoes (Cooked)",
-    basis: "Baked cooked weight",
-    servingGrams: 250,
-    calories: 232,
-    protein: 6.2,
-    carbs: 53,
-    fat: 0.3,
-    costTND: 0.75,
-    costUSD: 0.25,
-    category: "Grains & Starches",
-    role: "carb",
-    allergens: [],
-    isVegetarian: true,
-    source: "USDA FDC #170030",
-    lastVerified: "Baseline Oct 2026"
-  },
-  {
-    id: "food_yogurt",
-    name: "Plain Strained Greek Yogurt / Raieb",
-    basis: "Ready-to-eat",
-    servingGrams: 200,
-    calories: 146,
-    protein: 20,
-    carbs: 7.8,
-    fat: 3.8,
-    costTND: 1.9,
-    costUSD: 0.62,
-    category: "Eggs & Dairy",
-    role: "protein",
-    allergens: ["dairy"],
-    isVegetarian: true,
-    source: "USDA FDC #170903",
-    lastVerified: "Baseline Oct 2026"
-  },
-  {
-    id: "food_olive_oil",
-    name: "Tunisian Extra-Virgin Olive Oil (1 Tbsp)",
-    basis: "Liquid measure (14g)",
-    servingGrams: 14,
-    calories: 124,
-    protein: 0,
-    carbs: 0,
-    fat: 14,
-    costTND: 0.45,
-    costUSD: 0.15,
-    category: "Healthy Fats",
-    role: "fat",
-    allergens: [],
-    isVegetarian: true,
-    source: "USDA FDC #171413",
-    lastVerified: "Baseline Oct 2026"
-  },
-  {
-    id: "food_almonds",
-    name: "Raw Whole Almonds (Amandes)",
-    basis: "Dry raw weight",
-    servingGrams: 30,
-    calories: 173,
-    protein: 6.4,
-    carbs: 6.5,
-    fat: 15,
-    costTND: 1.6,
-    costUSD: 0.52,
-    category: "Healthy Fats",
-    role: "fat",
-    allergens: ["nuts"],
-    isVegetarian: true,
-    source: "USDA FDC #170567",
-    lastVerified: "Baseline Oct 2026"
-  }
+  { id: "food_chicken_breast", name: "Chicken Breast (Escalope de Poulet)", servingGrams: 150, calories: 180, protein: 34, carbs: 0, fat: 3.9, costTND: 3.2, role: "protein" },
+  { id: "food_sardines", name: "Fresh Grilled Sardines (Sardine Grillée)", servingGrams: 150, calories: 310, protein: 37, carbs: 0, fat: 17, costTND: 2.1, role: "protein" },
+  { id: "food_eggs", name: "Whole Chicken Eggs (3 Large)", servingGrams: 150, calories: 215, protein: 19, carbs: 1.1, fat: 14.3, costTND: 1.35, role: "protein" },
+  { id: "food_couscous", name: "Steamed Whole-Wheat Couscous", servingGrams: 220, calories: 246, protein: 8.4, carbs: 51, fat: 0.4, costTND: 0.85, role: "carb" },
+  { id: "food_olive_oil", name: "Tunisian Extra-Virgin Olive Oil (1 Tbsp)", servingGrams: 14, calories: 124, protein: 0, carbs: 0, fat: 14, costTND: 0.45, role: "fat" }
 ];
 
 // ============================================================================
-// 4. REALISTIC 60FPS GIF-STYLE ARTICULATED EXERCISE ANIMATOR + ERROR 153 FIX
-// ============================================================================
-
-const POSE_LIBRARY = {
-  squat: {
-    label: "Squat Biomechanics (Quad & Glute Drive)",
-    equipment: "barbell_back",
-    activeZone: "legs",
-    start: {
-      ankle: [165, 172],
-      knee: [162, 130],
-      hip: [158, 88],
-      shoulder: [160, 44],
-      elbow: [148, 60],
-      hand: [156, 45],
-      head: [163, 27],
-      bar: [156, 44]
-    },
-    end: {
-      ankle: [165, 172],
-      knee: [194, 134],
-      hip: [130, 126],
-      shoulder: [156, 82],
-      elbow: [142, 96],
-      hand: [152, 82],
-      head: [162, 65],
-      bar: [152, 82]
-    }
-  },
-  hinge: {
-    label: "Hip Hinge / RDL (Posterior Chain Stretch)",
-    equipment: "barbell_hands",
-    activeZone: "posterior",
-    start: {
-      ankle: [155, 172],
-      knee: [158, 132],
-      hip: [155, 88],
-      shoulder: [158, 42],
-      elbow: [160, 68],
-      hand: [164, 92],
-      head: [162, 25],
-      bar: [164, 94]
-    },
-    end: {
-      ankle: [155, 172],
-      knee: [164, 134],
-      hip: [118, 96],
-      shoulder: [182, 80],
-      elbow: [180, 110],
-      hand: [176, 138],
-      head: [196, 72],
-      bar: [176, 140]
-    }
-  },
-  bench_press: {
-    label: "Horizontal Press (Pectoral & Tricep Drive)",
-    equipment: "bench_rack",
-    activeZone: "chest",
-    start: {
-      ankle: [228, 172],
-      knee: [215, 132],
-      hip: [175, 126],
-      shoulder: [112, 124],
-      elbow: [116, 92],
-      hand: [112, 62],
-      head: [92, 122],
-      bar: [112, 60]
-    },
-    end: {
-      ankle: [228, 172],
-      knee: [215, 132],
-      hip: [175, 126],
-      shoulder: [112, 124],
-      elbow: [125, 138],
-      hand: [120, 102],
-      head: [92, 122],
-      bar: [120, 100]
-    }
-  },
-  lat_pulldown: {
-    label: "Vertical Pull (Latissimus Dorsi Contraction)",
-    equipment: "cable_tower",
-    activeZone: "back",
-    start: {
-      ankle: [195, 172],
-      knee: [195, 136],
-      hip: [156, 136],
-      shoulder: [154, 90],
-      elbow: [148, 56],
-      hand: [156, 30],
-      head: [156, 72],
-      bar: [156, 30]
-    },
-    end: {
-      ankle: [195, 172],
-      knee: [195, 136],
-      hip: [156, 136],
-      shoulder: [150, 92],
-      elbow: [142, 118],
-      hand: [162, 82],
-      head: [152, 74],
-      bar: [162, 82]
-    }
-  },
-  row: {
-    label: "Bent-Over Row (Mid-Back & Lat Sweep)",
-    equipment: "barbell_hands",
-    activeZone: "back",
-    start: {
-      ankle: [150, 172],
-      knee: [166, 134],
-      hip: [126, 96],
-      shoulder: [182, 72],
-      elbow: [182, 106],
-      hand: [182, 134],
-      head: [196, 62],
-      bar: [182, 136]
-    },
-    end: {
-      ankle: [150, 172],
-      knee: [166, 134],
-      hip: [126, 96],
-      shoulder: [182, 72],
-      elbow: [148, 66],
-      hand: [158, 96],
-      head: [196, 62],
-      bar: [158, 98]
-    }
-  },
-  overhead_press: {
-    label: "Vertical Press (Deltoid & Tricep Lockout)",
-    equipment: "barbell_hands",
-    activeZone: "shoulders",
-    start: {
-      ankle: [160, 172],
-      knee: [160, 132],
-      hip: [158, 90],
-      shoulder: [158, 48],
-      elbow: [152, 72],
-      hand: [164, 44],
-      head: [160, 30],
-      bar: [164, 42]
-    },
-    end: {
-      ankle: [160, 172],
-      knee: [160, 132],
-      hip: [158, 90],
-      shoulder: [158, 46],
-      elbow: [158, 24],
-      hand: [158, 8],
-      head: [160, 30],
-      bar: [158, 8]
-    }
-  },
-  curl: {
-    label: "Elbow Flexion (Biceps Peak Contraction)",
-    equipment: "barbell_hands",
-    activeZone: "arms",
-    start: {
-      ankle: [160, 172],
-      knee: [160, 132],
-      hip: [158, 90],
-      shoulder: [158, 46],
-      elbow: [160, 76],
-      hand: [168, 102],
-      head: [160, 28],
-      bar: [168, 104]
-    },
-    end: {
-      ankle: [160, 172],
-      knee: [160, 132],
-      hip: [158, 90],
-      shoulder: [158, 46],
-      elbow: [162, 76],
-      hand: [184, 52],
-      head: [160, 28],
-      bar: [184, 50]
-    }
-  },
-  pushup: {
-    label: "Plank & Push-Up (Core & Anterior Chain)",
-    equipment: "floor_only",
-    activeZone: "chest",
-    start: {
-      ankle: [82, 168],
-      knee: [124, 150],
-      hip: [166, 132],
-      shoulder: [218, 110],
-      elbow: [216, 140],
-      hand: [218, 170],
-      head: [236, 102],
-      bar: [218, 170]
-    },
-    end: {
-      ankle: [82, 168],
-      knee: [124, 160],
-      hip: [166, 152],
-      shoulder: [218, 146],
-      elbow: [196, 148],
-      hand: [218, 170],
-      head: [236, 140],
-      bar: [218, 170]
-    }
-  }
-};
-
-function lerpPoint(p1, p2, t) {
-  return [p1[0] + (p2[0] - p1[0]) * t, p1[1] + (p2[1] - p1[1]) * t];
-}
-
-function RealisticBiomechanicalGifPlayer({ exercise }) {
-  const [progress, setProgress] = useState(0);
-  const [phaseLabel, setPhaseLabel] = useState("ECCENTRIC (2.0s)");
-  const [speedMultiplier, setSpeedMultiplier] = useState(1);
-  const [isPaused, setIsPaused] = useState(false);
-
-  const poseKey = POSE_LIBRARY[exercise?.motionType]
-    ? exercise.motionType
-    : "squat";
-  const config = POSE_LIBRARY[poseKey];
-
-  useEffect(() => {
-    if (isPaused) return;
-    let rafId;
-    const startTime = performance.now();
-    const cycleDurationMs = 3400 / speedMultiplier;
-
-    const animate = (now) => {
-      const elapsed = (now - startTime) % cycleDurationMs;
-      const norm = elapsed / cycleDurationMs;
-      let t = 0;
-
-      if (norm < 0.45) {
-        const local = norm / 0.45;
-        t = 0.5 - 0.5 * Math.cos(local * Math.PI);
-        setPhaseLabel("ECCENTRIC • CONTROLLED LOWERING (2.0s)");
-      } else if (norm < 0.58) {
-        t = 1;
-        setPhaseLabel("ISOMETRIC PAUSE • PEAK TENSION (0.5s)");
-      } else if (norm < 0.9) {
-        const local = (norm - 0.58) / 0.32;
-        t = 1 - (0.5 - 0.5 * Math.cos(local * Math.PI));
-        setPhaseLabel("CONCENTRIC • EXPLOSIVE DRIVE (1.0s)");
-      } else {
-        t = 0;
-        setPhaseLabel("TOP LOCKOUT • RESET BREATH");
-      }
-
-      setProgress(t);
-      rafId = requestAnimationFrame(animate);
-    };
-
-    rafId = requestAnimationFrame(animate);
-    return () => cancelAnimationFrame(rafId);
-  }, [isPaused, speedMultiplier, poseKey]);
-
-  const cur = {
-    ankle: lerpPoint(config.start.ankle, config.end.ankle, progress),
-    knee: lerpPoint(config.start.knee, config.end.knee, progress),
-    hip: lerpPoint(config.start.hip, config.end.hip, progress),
-    shoulder: lerpPoint(config.start.shoulder, config.end.shoulder, progress),
-    elbow: lerpPoint(config.start.elbow, config.end.elbow, progress),
-    hand: lerpPoint(config.start.hand, config.end.hand, progress),
-    head: lerpPoint(config.start.head, config.end.head, progress),
-    bar: lerpPoint(config.start.bar, config.end.bar, progress)
-  };
-
-  const glowIntensity = 0.35 + progress * 0.65;
-
-  return (
-    <div className="relative w-full h-full flex flex-col justify-between bg-[#0B0D0F] p-4 select-none overflow-hidden">
-      <div
-        className="absolute inset-0 opacity-20 pointer-events-none"
-        style={{
-          backgroundImage:
-            "radial-gradient(#B8F34A 1px, transparent 1px), linear-gradient(to right, #1f2937 1px, transparent 1px), linear-gradient(to bottom, #1f2937 1px, transparent 1px)",
-          backgroundSize: "24px 24px"
-        }}
-      />
-
-      <div className="z-10 flex flex-wrap items-center justify-between gap-2">
-        <div className="flex items-center gap-2 px-3 py-1 rounded-full bg-[#15191D] border border-[#B8F34A]/40 text-[11px] font-bold text-[#B8F34A]">
-          <span className="w-2 h-2 rounded-full bg-[#B8F34A] animate-ping" />
-          <span>60FPS GIF-STYLE BIOMECHANICAL LOOP: {config.label}</span>
-        </div>
-
-        <div className="flex items-center gap-1.5 bg-[#15191D] border border-white/10 rounded-lg p-1 text-[11px]">
-          <button
-            onClick={() => setIsPaused(!isPaused)}
-            className="px-2 py-1 rounded bg-white/10 hover:bg-[#B8F34A] hover:text-black font-bold text-white flex items-center gap-1 transition"
-          >
-            {isPaused ? (
-              <Play className="w-3 h-3" />
-            ) : (
-              <Pause className="w-3 h-3" />
-            )}
-            {isPaused ? "Play" : "Pause"}
-          </button>
-          <button
-            onClick={() => setSpeedMultiplier(speedMultiplier === 0.5 ? 1 : 0.5)}
-            className={`px-2 py-1 rounded font-bold transition ${
-              speedMultiplier === 0.5
-                ? "bg-[#B8F34A] text-black"
-                : "text-gray-300 hover:bg-white/10"
-            }`}
-          >
-            0.5× Slow-Mo
-          </button>
-        </div>
-      </div>
-
-      <div className="z-10 flex-1 grid grid-cols-1 md:grid-cols-3 items-center gap-3 my-1">
-        <div className="md:col-span-2 flex items-center justify-center">
-          <svg viewBox="0 0 320 190" className="w-full max-w-[400px] h-[200px]">
-            <defs>
-              <radialGradient id="muscleGlow" cx="50%" cy="50%" r="50%">
-                <stop
-                  offset="0%"
-                  stopColor="#B8F34A"
-                  stopOpacity={glowIntensity}
-                />
-                <stop offset="100%" stopColor="#B8F34A" stopOpacity="0" />
-              </radialGradient>
-            </defs>
-
-            <line
-              x1="20"
-              y1="176"
-              x2="300"
-              y2="176"
-              stroke="#334155"
-              strokeWidth="4"
-              strokeLinecap="round"
-            />
-
-            {config.equipment === "bench_rack" && (
-              <g>
-                <rect
-                  x="85"
-                  y="132"
-                  width="110"
-                  height="9"
-                  rx="3"
-                  fill="#334155"
-                />
-                <rect x="102" y="141" width="8" height="35" fill="#475569" />
-                <rect x="172" y="141" width="8" height="35" fill="#475569" />
-                <line
-                  x1="108"
-                  y1="45"
-                  x2="108"
-                  y2="176"
-                  stroke="#475569"
-                  strokeWidth="4"
-                />
-              </g>
-            )}
-
-            {config.equipment === "cable_tower" && (
-              <g>
-                <line
-                  x1="156"
-                  y1="10"
-                  x2="156"
-                  y2="30"
-                  stroke="#94a3b8"
-                  strokeWidth="2"
-                />
-                <line
-                  x1="156"
-                  y1="10"
-                  x2={cur.bar[0]}
-                  y2={cur.bar[1]}
-                  stroke="#B8F34A"
-                  strokeWidth="2"
-                  strokeDasharray="3"
-                />
-                <rect
-                  x="135"
-                  y="142"
-                  width="45"
-                  height="8"
-                  rx="3"
-                  fill="#334155"
-                />
-                <rect x="152" y="150" width="8" height="26" fill="#475569" />
-              </g>
-            )}
-
-            <line
-              x1={config.start.bar[0]}
-              y1={config.start.bar[1]}
-              x2={config.end.bar[0]}
-              y2={config.end.bar[1]}
-              stroke="#B8F34A"
-              strokeWidth="2"
-              strokeDasharray="4 4"
-              opacity="0.55"
-            />
-
-            {config.activeZone === "legs" && (
-              <circle
-                cx={cur.knee[0] - 12}
-                cy={(cur.hip[1] + cur.knee[1]) / 2}
-                r="28"
-                fill="url(#muscleGlow)"
-              />
-            )}
-            {config.activeZone === "posterior" && (
-              <circle
-                cx={cur.hip[0]}
-                cy={cur.hip[1]}
-                r="30"
-                fill="url(#muscleGlow)"
-              />
-            )}
-            {config.activeZone === "chest" && (
-              <circle
-                cx={cur.shoulder[0]}
-                cy={cur.shoulder[1]}
-                r="28"
-                fill="url(#muscleGlow)"
-              />
-            )}
-            {config.activeZone === "back" && (
-              <circle
-                cx={(cur.shoulder[0] + cur.hip[0]) / 2}
-                cy={(cur.shoulder[1] + cur.hip[1]) / 2}
-                r="28"
-                fill="url(#muscleGlow)"
-              />
-            )}
-            {config.activeZone === "shoulders" && (
-              <circle
-                cx={cur.shoulder[0]}
-                cy={cur.shoulder[1]}
-                r="24"
-                fill="url(#muscleGlow)"
-              />
-            )}
-            {config.activeZone === "arms" && (
-              <circle
-                cx={cur.elbow[0]}
-                cy={cur.elbow[1] - 10}
-                r="22"
-                fill="url(#muscleGlow)"
-              />
-            )}
-
-            <line
-              x1={cur.ankle[0]}
-              y1={cur.ankle[1]}
-              x2={cur.knee[0]}
-              y2={cur.knee[1]}
-              stroke="#94a3b8"
-              strokeWidth="10"
-              strokeLinecap="round"
-            />
-            <line
-              x1={cur.knee[0]}
-              y1={cur.knee[1]}
-              x2={cur.hip[0]}
-              y2={cur.hip[1]}
-              stroke={
-                config.activeZone === "legs" || config.activeZone === "posterior"
-                  ? "#B8F34A"
-                  : "#cbd5e1"
-              }
-              strokeWidth="13"
-              strokeLinecap="round"
-            />
-            <line
-              x1={cur.hip[0]}
-              y1={cur.hip[1]}
-              x2={cur.shoulder[0]}
-              y2={cur.shoulder[1]}
-              stroke={
-                config.activeZone === "back" || config.activeZone === "chest"
-                  ? "#B8F34A"
-                  : "#e2e8f0"
-              }
-              strokeWidth="15"
-              strokeLinecap="round"
-            />
-            <circle cx={cur.head[0]} cy={cur.head[1]} r="11" fill="#f8fafc" />
-            <line
-              x1={cur.shoulder[0]}
-              y1={cur.shoulder[1]}
-              x2={cur.elbow[0]}
-              y2={cur.elbow[1]}
-              stroke={
-                config.activeZone === "shoulders" ||
-                config.activeZone === "chest"
-                  ? "#B8F34A"
-                  : "#cbd5e1"
-              }
-              strokeWidth="9"
-              strokeLinecap="round"
-            />
-            <line
-              x1={cur.elbow[0]}
-              y1={cur.elbow[1]}
-              x2={cur.hand[0]}
-              y2={cur.hand[1]}
-              stroke={config.activeZone === "arms" ? "#B8F34A" : "#94a3b8"}
-              strokeWidth="8"
-              strokeLinecap="round"
-            />
-
-            {[cur.ankle, cur.knee, cur.hip, cur.shoulder, cur.elbow].map(
-              (pt, i) => (
-                <circle
-                  key={i}
-                  cx={pt[0]}
-                  cy={pt[1]}
-                  r="4"
-                  fill="#0B0D0F"
-                  stroke="#B8F34A"
-                  strokeWidth="2"
-                />
-              )
-            )}
-
-            {config.equipment !== "floor_only" && (
-              <g>
-                <circle
-                  cx={cur.bar[0]}
-                  cy={cur.bar[1]}
-                  r="13"
-                  fill="#15191D"
-                  stroke="#B8F34A"
-                  strokeWidth="3.5"
-                />
-                <circle cx={cur.bar[0]} cy={cur.bar[1]} r="4" fill="#B8F34A" />
-              </g>
-            )}
-          </svg>
-        </div>
-
-        <div className="hidden md:flex flex-col justify-between bg-[#15191D]/90 border border-white/10 rounded-xl p-3 text-xs space-y-3">
-          <div>
-            <span className="text-[10px] font-bold uppercase text-[#B8F34A]">
-              Live Muscle Recruitment
-            </span>
-            <div className="mt-2 space-y-2">
-              <div>
-                <div className="flex justify-between text-[11px]">
-                  <span className="text-white font-semibold">
-                    {exercise.muscleGroup} (Primary)
-                  </span>
-                  <span className="text-[#B8F34A] font-mono">
-                    {Math.round(55 + progress * 45)}%
-                  </span>
-                </div>
-                <div className="h-1.5 bg-[#0B0D0F] rounded-full overflow-hidden mt-1">
-                  <div
-                    className="h-full bg-[#B8F34A]"
-                    style={{ width: `${Math.round(55 + progress * 45)}%` }}
-                  />
-                </div>
-              </div>
-              {exercise.secondaryMuscles?.slice(0, 2).map((sec, idx) => (
-                <div key={idx}>
-                  <div className="flex justify-between text-[11px]">
-                    <span className="text-gray-300">{sec}</span>
-                    <span className="text-gray-400 font-mono">
-                      {Math.round(35 + progress * 35)}%
-                    </span>
-                  </div>
-                  <div className="h-1.5 bg-[#0B0D0F] rounded-full overflow-hidden mt-1">
-                    <div
-                      className="h-full bg-emerald-400/70"
-                      style={{ width: `${Math.round(35 + progress * 35)}%` }}
-                    />
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          <div className="pt-2 border-t border-white/10 text-[11px] text-gray-400">
-            Works 100% offline & inside sandboxed previews with zero YouTube
-            Error 153 blocks.
-          </div>
-        </div>
-      </div>
-
-      <div className="z-10 bg-[#15191D] border border-white/10 rounded-xl p-2.5 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs">
-        <div className="font-extrabold text-[#B8F34A] tracking-wide">
-          {phaseLabel}
-        </div>
-        <div className="flex items-center gap-2 w-full sm:w-48">
-          <span className="text-[10px] text-gray-400">ROM</span>
-          <div className="flex-1 h-2 bg-[#0B0D0F] rounded-full overflow-hidden">
-            <div
-              className="h-full bg-[#B8F34A] transition-none"
-              style={{ width: `${Math.round(progress * 100)}%` }}
-            />
-          </div>
-          <span className="text-[10px] font-mono text-white w-8 text-right">
-            {Math.round(progress * 100)}%
-          </span>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function ExerciseVideoModal({ exercise, onClose }) {
-  const [videoTab, setVideoTab] = useState("gif_loop");
-  const [tryEmbedAnyway, setTryEmbedAnyway] = useState(false);
-
-  if (!exercise) return null;
-
-  const directYoutubeWatchUrl = `https://www.youtube.com/watch?v=${exercise.youtubeEmbedId}`;
-
-  return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4"
-      role="dialog"
-      aria-modal="true"
-    >
-      <div className="bg-[#15191D] border border-white/15 rounded-2xl max-w-3xl w-full overflow-hidden shadow-2xl">
-        <div className="flex items-center justify-between px-6 py-4 border-b border-white/10 bg-[#0B0D0F]">
-          <div className="flex items-center gap-3">
-            <span className="p-2 rounded-lg bg-[#B8F34A]/15 text-[#B8F34A]">
-              <Activity className="w-5 h-5" />
-            </span>
-            <div>
-              <h3 className="text-lg font-bold text-white">
-                {exercise.name} — 60fps Biomechanical GIF & Video Guide
-              </h3>
-              <p className="text-xs text-gray-400">
-                Primary: {exercise.muscleGroup} • Secondary:{" "}
-                {exercise.secondaryMuscles?.join(", ")} • {exercise.equipment}
-              </p>
-            </div>
-          </div>
-          <button
-            onClick={onClose}
-            className="p-2 rounded-lg text-gray-400 hover:text-white hover:bg-white/10 transition"
-          >
-            <X className="w-5 h-5" />
-          </button>
-        </div>
-
-        <div className="px-6 pt-4 flex flex-wrap items-center justify-between gap-2 bg-[#15191D]">
-          <div className="inline-flex rounded-lg bg-[#0B0D0F] p-1 border border-white/10">
-            <button
-              onClick={() => setVideoTab("gif_loop")}
-              className={`px-3 py-1.5 rounded-md text-xs font-semibold transition flex items-center gap-1.5 ${
-                videoTab === "gif_loop"
-                  ? "bg-[#B8F34A] text-black"
-                  : "text-gray-400 hover:text-white"
-              }`}
-            >
-              <Activity className="w-3.5 h-3.5" />
-              Realistic GIF-Style Loop (60fps)
-            </button>
-            <button
-              onClick={() => setVideoTab("youtube")}
-              className={`px-3 py-1.5 rounded-md text-xs font-semibold transition flex items-center gap-1.5 ${
-                videoTab === "youtube"
-                  ? "bg-[#B8F34A] text-black"
-                  : "text-gray-400 hover:text-white"
-              }`}
-            >
-              <Play className="w-3.5 h-3.5 fill-current" />
-              YouTube Video Player
-            </button>
-          </div>
-
-          <span className="text-xs text-gray-400">
-            Prescribed:{" "}
-            <strong className="text-white">
-              {exercise.defaultSets} sets × {exercise.repRange[0]}–
-              {exercise.repRange[1]} reps
-            </strong>{" "}
-            ({exercise.rir})
-          </span>
-        </div>
-
-        <div className="p-6">
-          <div className="relative w-full aspect-video rounded-xl overflow-hidden border border-white/10 bg-[#0B0D0F]">
-            {videoTab === "gif_loop" ? (
-              <RealisticBiomechanicalGifPlayer exercise={exercise} />
-            ) : !tryEmbedAnyway ? (
-              <div className="relative w-full h-full flex flex-col items-center justify-center p-6 text-center">
-                <img
-                  src={exercise.thumbnailUrl}
-                  alt={exercise.name}
-                  className="absolute inset-0 w-full h-full object-cover opacity-35"
-                />
-                <div className="absolute inset-0 bg-gradient-to-t from-[#0B0D0F] via-[#0B0D0F]/80 to-black/60" />
-
-                <div className="relative z-10 max-w-md space-y-4">
-                  <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#B8F34A]/15 border border-[#B8F34A]/40 text-[#B8F34A] text-xs font-bold">
-                    <ShieldCheck className="w-4 h-4" /> Error 153 Sandbox
-                    Protection Active
-                  </span>
-                  <h4 className="text-xl font-black text-white">
-                    Watch "{exercise.name}" HD Form Tutorial
-                  </h4>
-                  <p className="text-xs text-gray-300 leading-relaxed">
-                    Sandboxed preview windows strip HTTP Referer headers, which
-                    triggers <strong>YouTube Error 153</strong> on embedded
-                    iframes. Click below to open the exact HD video directly on
-                    YouTube, or try the referrer-patched embed.
-                  </p>
-                  <div className="flex flex-wrap items-center justify-center gap-3 pt-1">
-                    <a
-                      href={directYoutubeWatchUrl}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="px-5 py-2.5 rounded-xl bg-[#B8F34A] text-black font-extrabold text-xs flex items-center gap-2 hover:brightness-110 transition shadow-lg"
-                    >
-                      <Play className="w-4 h-4 fill-current" /> Watch HD Video on
-                      YouTube ↗
-                    </a>
-                    <button
-                      onClick={() => setTryEmbedAnyway(true)}
-                      className="px-4 py-2.5 rounded-xl bg-white/10 hover:bg-white/15 text-white font-semibold text-xs border border-white/15 transition"
-                    >
-                      Load Patched Embed Here
-                    </button>
-                  </div>
-                </div>
-              </div>
-            ) : (
-              <iframe
-                className="w-full h-full"
-                src={`https://www.youtube.com/embed/${exercise.youtubeEmbedId}?rel=0&modestbranding=1`}
-                title={`${exercise.name} Video Demonstration`}
-                referrerPolicy="strict-origin-when-cross-origin"
-                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
-                allowFullScreen
-              />
-            )}
-          </div>
-
-          <div className="mt-5 grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div className="md:col-span-2 bg-[#0B0D0F] border border-white/10 rounded-xl p-4">
-              <h4 className="text-xs font-bold uppercase tracking-wider text-[#B8F34A] mb-2.5 flex items-center gap-1.5">
-                <CheckCircle2 className="w-4 h-4" />
-                Step-by-Step Execution Cues
-              </h4>
-              <ol className="space-y-2 text-xs text-gray-300 list-decimal list-inside">
-                {exercise.cues.map((cue, idx) => (
-                  <li key={idx} className="leading-relaxed">
-                    {cue}
-                  </li>
-                ))}
-              </ol>
-            </div>
-
-            <div className="bg-[#0B0D0F] border border-white/10 rounded-xl p-4 flex flex-col justify-between">
-              <div className="space-y-2 text-xs">
-                <div className="flex justify-between py-1 border-b border-white/5">
-                  <span className="text-gray-400">Rest Interval:</span>
-                  <span className="text-white font-semibold">
-                    {exercise.restSeconds} sec
-                  </span>
-                </div>
-                <div className="flex justify-between py-1 border-b border-white/5">
-                  <span className="text-gray-400">Effort Target:</span>
-                  <span className="text-[#B8F34A] font-semibold">
-                    {exercise.rir}
-                  </span>
-                </div>
-                <div className="flex justify-between py-1">
-                  <span className="text-gray-400">Equipment:</span>
-                  <span className="text-white font-semibold">
-                    {exercise.equipment}
-                  </span>
-                </div>
-              </div>
-
-              <a
-                href={directYoutubeWatchUrl}
-                target="_blank"
-                rel="noreferrer"
-                className="mt-4 w-full py-2 px-3 rounded-lg bg-[#B8F34A]/15 hover:bg-[#B8F34A] text-[#B8F34A] hover:text-black text-xs font-bold text-center transition flex items-center justify-center gap-1.5"
-              >
-                <span>Direct YouTube Video</span>
-                <ExternalLink className="w-3.5 h-3.5" />
-              </a>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// ============================================================================
-// 5. DETERMINISTIC WORKOUT GENERATOR
-// ============================================================================
-
-function generateWorkoutSchedule(profile) {
-  const { experience, daysPerWeek, equipment, jointLimitations } = profile;
-
-  const resolveExercise = (exId) => {
-    let candidate = EXERCISES_DB.find((e) => e.id === exId) || EXERCISES_DB[0];
-    const hasJointConflict = candidate.jointFlags.some((flag) =>
-      (jointLimitations || []).includes(flag)
-    );
-    const equipmentMismatch =
-      equipment === "Bodyweight" && candidate.equipment !== "Bodyweight"
-        ? true
-        : equipment === "Dumbbells" && candidate.equipment === "Full Gym";
-
-    if ((hasJointConflict || equipmentMismatch) && candidate.alternativeId) {
-      const alt = EXERCISES_DB.find((e) => e.id === candidate.alternativeId);
-      if (alt) candidate = alt;
-    }
-    return candidate;
-  };
-
-  if (daysPerWeek <= 3 || experience === "beginner") {
-    return [
-      {
-        id: "day_fb_a",
-        name: "Full Body Foundation A",
-        durationMinutes: 50,
-        focus: "Squat Pattern, Horizontal Push & Vertical Pull",
-        levelNote:
-          "Prioritizes movement mastery, controlled 2-second eccentrics, and full 48h recovery.",
-        exercises: [
-          resolveExercise("ex_barbell_squat"),
-          resolveExercise("ex_bench_press"),
-          resolveExercise("ex_lat_pulldown"),
-          resolveExercise("ex_plank")
-        ]
-      },
-      {
-        id: "day_fb_b",
-        name: "Full Body Foundation B",
-        durationMinutes: 50,
-        focus: "Hip Hinge, Overhead Press & Row",
-        levelNote:
-          "Balances posterior chain development with shoulder stability.",
-        exercises: [
-          resolveExercise("ex_rdl"),
-          resolveExercise("ex_ohp"),
-          resolveExercise("ex_db_row"),
-          resolveExercise("ex_glute_bridge")
-        ]
-      },
-      {
-        id: "day_fb_c",
-        name: "Full Body Hypertrophy C",
-        durationMinutes: 55,
-        focus: "Unilateral Stability, Arms & Calves",
-        levelNote:
-          "Addresses side-to-side asymmetries and builds work capacity.",
-        exercises: [
-          resolveExercise("ex_goblet_squat"),
-          resolveExercise("ex_db_floor_press"),
-          resolveExercise("ex_bicep_curl"),
-          resolveExercise("ex_calf_raise")
-        ]
-      }
-    ].slice(0, daysPerWeek);
-  }
-
-  return [
-    {
-      id: "day_upper_a",
-      name: "Upper Body Strength & Density",
-      durationMinutes: 60,
-      focus: "Chest, Back, Deltoids & Arms",
-      levelNote:
-        experience === "advanced"
-          ? "Includes optional antagonist superset pairing on final isolation sets."
-          : "Progressive overload on primary compound lifts.",
-      exercises: [
-        resolveExercise("ex_bench_press"),
-        resolveExercise("ex_lat_pulldown"),
-        resolveExercise("ex_ohp"),
-        resolveExercise("ex_db_row"),
-        resolveExercise("ex_bicep_curl")
-      ]
-    },
-    {
-      id: "day_lower_a",
-      name: "Lower Body Quad & Glute Focus",
-      durationMinutes: 60,
-      focus: "Quadriceps, Hamstrings, Calves & Core",
-      levelNote:
-        "Leave 1–2 reps in reserve (RIR) on heavy compound lower-body sets.",
-      exercises: [
-        resolveExercise("ex_barbell_squat"),
-        resolveExercise("ex_rdl"),
-        resolveExercise("ex_glute_bridge"),
-        resolveExercise("ex_calf_raise"),
-        resolveExercise("ex_plank")
-      ]
-    },
-    {
-      id: "day_upper_b",
-      name: "Upper Body Hypertrophy",
-      durationMinutes: 55,
-      focus: "Upper Chest, Lats & Lateral Delts",
-      levelNote: "Focus on clean mind-muscle connection and controlled tempo.",
-      exercises: [
-        resolveExercise("ex_db_floor_press"),
-        resolveExercise("ex_db_row"),
-        resolveExercise("ex_lateral_raise"),
-        resolveExercise("ex_bicep_curl"),
-        resolveExercise("ex_pushup")
-      ]
-    },
-    {
-      id: "day_lower_b",
-      name: "Lower Body Posterior Chain",
-      durationMinutes: 55,
-      focus: "Hamstrings, Glutes, Quads & Calves",
-      levelNote: "Emphasizes peak hamstring stretch and glute lockout.",
-      exercises: [
-        resolveExercise("ex_rdl"),
-        resolveExercise("ex_goblet_squat"),
-        resolveExercise("ex_glute_bridge"),
-        resolveExercise("ex_calf_raise")
-      ]
-    },
-    {
-      id: "day_upper_c",
-      name: "Upper Body Specialization",
-      durationMinutes: 50,
-      focus: "Shoulders, Back Width & Arms",
-      levelNote: "Strict isolation mechanics and short rest intervals.",
-      exercises: [
-        resolveExercise("ex_ohp"),
-        resolveExercise("ex_lat_pulldown"),
-        resolveExercise("ex_lateral_raise"),
-        resolveExercise("ex_bicep_curl")
-      ]
-    },
-    {
-      id: "day_lower_c",
-      name: "Lower Body Unilateral & Core",
-      durationMinutes: 50,
-      focus: "Quads, Glutes & Core Bracing",
-      levelNote: "Joint-friendly volume and stability.",
-      exercises: [
-        resolveExercise("ex_goblet_squat"),
-        resolveExercise("ex_glute_bridge"),
-        resolveExercise("ex_calf_raise"),
-        resolveExercise("ex_plank")
-      ]
-    }
-  ].slice(0, daysPerWeek);
-}
-
-// ============================================================================
-// 6. MAIN FITFORGE APPLICATION (COMPLETE MASTER BUILD)
+// 3. MAIN APP COMPONENT
 // ============================================================================
 
 const DEFAULT_PROFILE = {
@@ -1704,518 +207,274 @@ const DEFAULT_PROFILE = {
   weightKg: 78.5,
   targetWeightKg: 82.0,
   goal: "muscle_gain",
-  experience: "intermediate",
-  daysPerWeek: 4,
-  sessionMinutes: 60,
-  equipment: "Full Gym",
-  activityMultiplier: 1.55,
-  jointLimitations: [],
-  dietaryPreference: "omnivore",
-  allergies: [],
-  dailyBudget: 25,
-  currency: "TND",
-  unitSystem: "metric",
-  manualCalorieOverride: ""
+  activityMultiplier: 1.55
 };
 
 export default function App() {
   const [activeTab, setActiveTab] = useState("dashboard");
-  const [showLanding, setShowLanding] = useState(false);
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const [activeVideoExercise, setActiveVideoExercise] = useState(null);
-  const [showMathDetails, setShowMathDetails] = useState(false);
-  const [showPriceEditor, setShowPriceEditor] = useState(false);
-  const [onboardingStep, setOnboardingStep] = useState(1);
+  
+  // Auth & Session State
+  const [user, setUser] = useState(null);
+  const [sessionLoading, setSessionLoading] = useState(true);
+  const [showAuthModal, setShowAuthModal] = useState(false);
+  const [authMode, setAuthMode] = useState("login"); // 'login' | 'signup'
+  const [authEmail, setAuthEmail] = useState("");
+  const [authPassword, setAuthPassword] = useState("");
+  const [authFullName, setAuthFullName] = useState("");
+  const [isPremium, setIsPremium] = useState(false);
 
-  const [customPricesTND, setCustomPricesTND] = useState(() => {
-    try {
-      const saved = localStorage.getItem("fitforge_custom_prices_tnd_v2");
-      return saved ? JSON.parse(saved) : {};
-    } catch {
-      return {};
-    }
-  });
+  const [profile, setProfile] = useState(DEFAULT_PROFILE);
 
+  // Initialize Supabase Auth Listener
   useEffect(() => {
-    try {
-      localStorage.setItem(
-        "fitforge_custom_prices_tnd_v2",
-        JSON.stringify(customPricesTND)
-      );
-    } catch {}
-  }, [customPricesTND]);
-
-  const foodsDb = useMemo(() => {
-    return INITIAL_FOODS_DB.map((f) => {
-      const customServingPrice = customPricesTND[f.id];
-      if (customServingPrice !== undefined && customServingPrice !== "") {
-        const numTND = Number(customServingPrice);
-        return {
-          ...f,
-          costTND: numTND,
-          costUSD: Number((numTND * 0.32).toFixed(2)),
-          lastVerified: "Updated Oct 2026 (Custom)"
-        };
-      }
-      return f;
-    });
-  }, [customPricesTND]);
-
-  const [profile, setProfile] = useState(() => {
-    try {
-      const saved = localStorage.getItem("fitforge_master_profile_v5");
-      return saved ? JSON.parse(saved) : DEFAULT_PROFILE;
-    } catch {
-      return DEFAULT_PROFILE;
+    if (!supabase) {
+      setSessionLoading(false);
+      return;
     }
-  });
 
-  useEffect(() => {
-    try {
-      localStorage.setItem(
-        "fitforge_master_profile_v5",
-        JSON.stringify(profile)
-      );
-    } catch {}
-  }, [profile]);
-
-  const nutritionTargets = useMemo(
-    () => calculateNutritionTargets(profile),
-    [profile]
-  );
-
-  const workoutPlan = useMemo(
-    () => generateWorkoutSchedule(profile),
-    [profile]
-  );
-
-  const [selectedSessionIdx, setSelectedSessionIdx] = useState(0);
-  const [swappedExercises, setSwappedExercises] = useState({});
-  const [skippedExercises, setSkippedExercises] = useState({});
-  const [workoutHistory, setWorkoutHistory] = useState([
-    {
-      id: "sess_1",
-      date: "2026-10-21",
-      name: "Upper Body Strength & Density",
-      totalSets: 14,
-      topPR: "Barbell Bench Press: 80 kg × 10"
-    },
-    {
-      id: "sess_2",
-      date: "2026-10-24",
-      name: "Lower Body Quad & Glute Focus",
-      totalSets: 12,
-      topPR: "Barbell Back Squat: 105 kg × 8"
-    }
-  ]);
-
-  const [workoutSets, setWorkoutSets] = useState({
-    ex_bench_press: [
-      { id: 1, weight: 60, reps: 10, isWarmup: true, completed: true },
-      { id: 2, weight: 80, reps: 10, isWarmup: false, completed: true },
-      { id: 3, weight: 80, reps: 10, isWarmup: false, completed: true }
-    ],
-    ex_lat_pulldown: [
-      { id: 1, weight: 65, reps: 12, isWarmup: false, completed: true },
-      { id: 2, weight: 65, reps: 11, isWarmup: false, completed: true }
-    ]
-  });
-  const [restTimer, setRestTimer] = useState(0);
-
-  useEffect(() => {
-    if (restTimer <= 0) return;
-    const t = setInterval(() => setRestTimer((r) => Math.max(0, r - 1)), 1000);
-    return () => clearInterval(t);
-  }, [restTimer]);
-
-  const [mealPlanSlots, setMealPlanSlots] = useState([
-    {
-      slot: "Breakfast",
-      title: "High-Protein Tunisian Egg & Oat Bowl",
-      foodIds: ["food_eggs", "food_oats", "food_almonds"],
-      instructions:
-        "Scramble 3 whole eggs softly; serve alongside warm rolled oats topped with raw almonds."
-    },
-    {
-      slot: "Lunch",
-      title: "Escalope Grillée & Steamed Couscous",
-      foodIds: ["food_chicken_breast", "food_couscous", "food_olive_oil"],
-      instructions:
-        "Season raw chicken breast with garlic, turmeric, and rosemary; pan-sear and drizzle Tunisian olive oil over steamed couscous."
-    },
-    {
-      slot: "Dinner",
-      title: "Mediterranean Grilled Sardines & Baked Potatoes",
-      foodIds: ["food_sardines", "food_potatoes", "food_lentils"],
-      instructions:
-        "Grill sardines with lemon and cumin; pair with oven-baked potato wedges and warm brown lentils."
-    },
-    {
-      slot: "Snack",
-      title: "Post-Workout Strained Yogurt & Chickpea Bowl",
-      foodIds: ["food_yogurt", "food_chickpeas"],
-      instructions:
-        "High-protein recovery snack combining strained Greek yogurt/Raieb and spiced chickpeas."
-    }
-  ]);
-
-  const [checkedGroceries, setCheckedGroceries] = useState({});
-  const [removedGroceries, setRemovedGroceries] = useState({});
-  const [customGroceryMultipliers, setCustomGroceryMultipliers] = useState({});
-
-  const [dailyLog, setDailyLog] = useState([
-    { id: "log_1", meal: "Breakfast", foodId: "food_eggs", multiplier: 1 },
-    { id: "log_2", meal: "Breakfast", foodId: "food_oats", multiplier: 1 },
-    {
-      id: "log_3",
-      meal: "Lunch",
-      foodId: "food_chicken_breast",
-      multiplier: 1.2
-    },
-    { id: "log_4", meal: "Lunch", foodId: "food_couscous", multiplier: 1 }
-  ]);
-  const [selectedFoodToAdd, setSelectedFoodToAdd] = useState("food_sardines");
-  const [selectedLogMeal, setSelectedLogMeal] = useState("Dinner");
-  const [servingMultiplier, setServingMultiplier] = useState(1);
-
-  const [weightHistory, setWeightHistory] = useState([
-    { date: "2026-09-28", weight: 77.2, waistCm: 81.5 },
-    { date: "2026-10-05", weight: 77.6, waistCm: 81.4 },
-    { date: "2026-10-12", weight: 78.0, waistCm: 81.2 },
-    { date: "2026-10-19", weight: 78.2, waistCm: 81.1 },
-    { date: "2026-10-26", weight: 78.5, waistCm: 81.0 }
-  ]);
-  const [newWeightInput, setNewWeightInput] = useState("");
-  const [newWaistInput, setNewWaistInput] = useState("");
-
-  const [exerciseSearch, setExerciseSearch] = useState("");
-  const [muscleFilter, setMuscleFilter] = useState("All");
-  const [equipmentFilter, setEquipmentFilter] = useState("All");
-
-  const handleSubstituteFood = (slotIndex, foodIdxInSlot, currentFoodId) => {
-    const currentFood = foodsDb.find((f) => f.id === currentFoodId);
-    if (!currentFood) return;
-
-    const safeCandidates = foodsDb.filter((f) => {
-      if (f.id === currentFoodId) return false;
-      if (f.role !== currentFood.role) return false;
-      if (profile.dietaryPreference === "vegetarian" && !f.isVegetarian)
-        return false;
-      const hasAllergen = f.allergens.some((a) =>
-        (profile.allergies || []).includes(a)
-      );
-      return !hasAllergen;
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setUser(session?.user ?? null);
+      if (session?.user) fetchUserProfile(session.user.id);
+      setSessionLoading(false);
     });
 
-    if (safeCandidates.length === 0) return;
-    const replacement = safeCandidates[0];
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      setUser(session?.user ?? null);
+      if (session?.user) fetchUserProfile(session.user.id);
+      else setIsPremium(false);
+    });
 
-    setMealPlanSlots((prev) =>
-      prev.map((slot, idx) => {
-        if (idx !== slotIndex) return slot;
-        const nextIds = [...slot.foodIds];
-        nextIds[foodIdxInSlot] = replacement.id;
-        return { ...slot, foodIds: nextIds };
-      })
-    );
+    return () => subscription.unsubscribe();
+  }, []);
+
+  const fetchUserProfile = async (userId) => {
+    if (!supabase) return;
+    const { data } = await supabase
+      .from("profiles")
+      .select("*")
+      .eq("id", userId)
+      .single();
+    
+    if (data) {
+      setIsPremium(data.is_premium || false);
+      if (data.full_name) setProfile(p => ({ ...p, name: data.full_name }));
+    }
   };
 
-  const loggedTotals = useMemo(() => {
-    return dailyLog.reduce(
-      (acc, entry) => {
-        const food = foodsDb.find((f) => f.id === entry.foodId);
-        if (!food) return acc;
-        const m = Number(entry.multiplier) || 1;
-        acc.calories += Math.round(food.calories * m);
-        acc.protein += Math.round(food.protein * m);
-        acc.carbs += Math.round(food.carbs * m);
-        acc.fat += Math.round(food.fat * m);
-        return acc;
-      },
-      { calories: 0, protein: 0, carbs: 0, fat: 0 }
-    );
-  }, [dailyLog, foodsDb]);
+  const handleAuthSubmit = async (e) => {
+    e.preventDefault();
+    if (!supabase) {
+      alert("Supabase is not configured. Running in offline mode.");
+      setUser({ email: authEmail });
+      setShowAuthModal(false);
+      return;
+    }
 
-  const aggregatedGroceries = useMemo(() => {
-    const map = {};
-    mealPlanSlots.forEach((slot) => {
-      slot.foodIds.forEach((fId) => {
-        if (removedGroceries[fId]) return;
-        const food = foodsDb.find((f) => f.id === fId);
-        if (!food) return;
-        if (!map[fId]) {
-          map[fId] = {
-            food,
-            weeklyGrams: 0,
-            weeklyCostTND: 0,
-            weeklyCostUSD: 0
-          };
-        }
-        const mult = customGroceryMultipliers[fId] ?? 1;
-        map[fId].weeklyGrams += Math.round(food.servingGrams * 7 * mult);
-        map[fId].weeklyCostTND += food.costTND * 7 * mult;
-        map[fId].weeklyCostUSD += food.costUSD * 7 * mult;
+    if (authMode === "signup") {
+      const { data, error } = await supabase.auth.signUp({
+        email: authEmail,
+        password: authPassword,
+        options: { data: { full_name: authFullName || "Athlete" } }
       });
-    });
-    return Object.values(map);
-  }, [mealPlanSlots, foodsDb, removedGroceries, customGroceryMultipliers]);
+      if (error) {
+        alert(error.message);
+      } else {
+        alert("Account created successfully! You are now logged in.");
+        setShowAuthModal(false);
+      }
+    } else {
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email: authEmail,
+        password: authPassword
+      });
+      if (error) {
+        alert(error.message);
+      } else {
+        setShowAuthModal(false);
+      }
+    }
+  };
 
-  const currentWorkout = workoutPlan[selectedSessionIdx] || workoutPlan[0];
+  const handleLogout = async () => {
+    if (supabase) await supabase.auth.signOut();
+    setUser(null);
+    setIsPremium(false);
+  };
 
-  if (showLanding) {
-    return (
-      <div className="min-h-screen bg-[#0B0D0F] text-white font-sans flex flex-col justify-between">
-        <header className="max-w-6xl mx-auto w-full px-6 py-6 flex items-center justify-between border-b border-white/10">
-          <div className="flex items-center gap-2.5">
-            <div className="w-9 h-9 rounded-xl bg-[#B8F34A] flex items-center justify-center text-black font-black">
-              FF
-            </div>
-            <span className="text-xl font-extrabold tracking-tight">
-              FIT<span className="text-[#B8F34A]">FORGE</span>
-            </span>
-          </div>
-          <button
-            onClick={() => setShowLanding(false)}
-            className="px-4 py-2 rounded-xl bg-[#B8F34A] text-black font-bold text-sm hover:brightness-110 transition"
-          >
-            Enter Dashboard →
-          </button>
-        </header>
+  const handleUpgradeToPro = async () => {
+    if (!supabase || !user) {
+      setIsPremium(true);
+      alert("PRO subscription activated in local test mode (20 TND/mo)");
+      return;
+    }
 
-        <main className="max-w-6xl mx-auto px-6 py-16 space-y-12">
-          <div className="max-w-3xl">
-            <span className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-[#B8F34A]/15 text-[#B8F34A] text-xs font-semibold mb-6">
-              <Sparkles className="w-3.5 h-3.5" /> Connected Training &
-              Nutrition OS
-            </span>
-            <h1 className="text-4xl md:text-6xl font-black tracking-tight leading-tight">
-              Train Smarter. Eat Better.{" "}
-              <span className="text-[#B8F34A]">Get Stronger.</span>
-            </h1>
-            <p className="mt-5 text-lg text-gray-400 leading-relaxed">
-              FitForge connects your weekly gym program, 60fps biomechanical GIF
-              exercise loops, HD video guides, deterministic Mifflin–St Jeor
-              calorie targets, and USDA-referenced Tunisian & Mediterranean
-              meals in one unified system.
-            </p>
-            <div className="mt-8 flex flex-wrap gap-4">
-              <button
-                onClick={() => {
-                  setShowLanding(false);
-                  setActiveTab("profile");
-                }}
-                className="px-6 py-3.5 rounded-xl bg-[#B8F34A] text-black font-bold text-sm hover:brightness-110 transition flex items-center gap-2"
-              >
-                Build My Plan <ArrowRight className="w-4 h-4" />
-              </button>
-              <button
-                onClick={() => {
-                  setShowLanding(false);
-                  setActiveTab("exercises");
-                }}
-                className="px-6 py-3.5 rounded-xl bg-[#15191D] border border-white/15 text-white font-semibold text-sm hover:bg-white/10 transition flex items-center gap-2"
-              >
-                <Activity className="w-4 h-4 text-[#B8F34A]" /> Explore Workouts
-                & GIF Demos
-              </button>
-            </div>
-          </div>
+    const { error } = await supabase
+      .from("profiles")
+      .update({ is_premium: true, subscription_plan: "pro_20dt", subscription_status: "active" })
+      .eq("id", user.id);
 
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-            {[
-              {
-                title: "1. Adaptive Workout Split",
-                desc: "Beginner Full-Body, Intermediate Upper/Lower, or Advanced periodized volume tailored to your equipment."
-              },
-              {
-                title: "2. 60fps GIF Loop & Video",
-                desc: "Every exercise features an articulated 60fps biomechanical cadence player + Error-153-protected YouTube launcher."
-              },
-              {
-                title: "3. Reconciled Macros",
-                desc: "Mifflin–St Jeor BMR & TDEE where daily protein, carbs, and fat calories match 4P + 4C + 9F."
-              },
-              {
-                title: "4. Live Market Price Book",
-                desc: "Edit local TND/USD shelf prices anytime to recalculate meal budgets and 7-day grocery lists."
-              }
-            ].map((item, i) => (
-              <div
-                key={i}
-                className="p-5 rounded-2xl bg-[#15191D] border border-white/10 space-y-2"
-              >
-                <h3 className="text-sm font-extrabold text-[#B8F34A]">
-                  {item.title}
-                </h3>
-                <p className="text-xs text-gray-400 leading-relaxed">
-                  {item.desc}
-                </p>
-              </div>
-            ))}
-          </div>
-        </main>
+    if (error) {
+      alert("Error updating subscription: " + error.message);
+    } else {
+      setIsPremium(true);
+      alert("Congratulations! FitForge PRO is now active for 20 TND/month.");
+    }
+  };
 
-        <footer className="border-t border-white/10 bg-[#15191D] px-6 py-5 text-xs text-gray-400">
-          <div className="max-w-6xl mx-auto flex flex-col sm:flex-row justify-between gap-2">
-            <span>
-              FitForge Free-First Architecture • Local Browser Storage Active
-            </span>
-            <span>
-              All energy & macro outputs are educational estimates, not medical
-              advice.
-            </span>
-          </div>
-        </footer>
-      </div>
-    );
-  }
-
-  const navItems = [
-    { id: "dashboard", label: "Dashboard", icon: TrendingUp },
-    { id: "workouts", label: "Workout Planner", icon: Dumbbell },
-    { id: "exercises", label: "Exercise Videos", icon: Video },
-    { id: "nutrition", label: "Nutrition Calculator", icon: Flame },
-    { id: "meals", label: "Meal Planner & Log", icon: Utensils },
-    { id: "grocery", label: "Grocery List", icon: ShoppingCart },
-    { id: "progress", label: "Progress Tracker", icon: Scale },
-    { id: "profile", label: "Profile & Settings", icon: User },
-    { id: "tests", label: "Tests/SQL", icon: Database }
-  ];
+  const nutritionTargets = useMemo(() => calculateNutritionTargets(profile), [profile]);
 
   return (
     <div className="min-h-screen bg-[#0B0D0F] text-white flex flex-col md:flex-row font-sans">
-      <ExerciseVideoModal
-        exercise={activeVideoExercise}
-        onClose={() => setActiveVideoExercise(null)}
-      />
+      
+      {/* AUTHENTICATION MODAL */}
+      {showAuthModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/85 backdrop-blur-sm p-4">
+          <div className="bg-[#15191D] border border-white/15 rounded-2xl max-w-md w-full p-6 space-y-5 shadow-2xl">
+            <div className="flex items-center justify-between border-b border-white/10 pb-4">
+              <div className="flex items-center gap-2">
+                <FitForgeLogo size="sm" />
+                <h3 className="text-lg font-black">{authMode === "login" ? "Sign In to FitForge" : "Create Account"}</h3>
+              </div>
+              <button onClick={() => setShowAuthModal(false)} className="text-gray-400 hover:text-white"><X className="w-5 h-5" /></button>
+            </div>
 
-      {/* DESKTOP SIDEBAR */}
+            <form onSubmit={handleAuthSubmit} className="space-y-3 text-xs">
+              {authMode === "signup" && (
+                <div>
+                  <label className="block text-gray-400 mb-1">Full Name</label>
+                  <input 
+                    type="text" 
+                    placeholder="Aladin"
+                    value={authFullName}
+                    onChange={(e) => setAuthFullName(e.target.value)}
+                    className="w-full px-3 py-2.5 rounded-xl bg-[#0B0D0F] border border-white/15 text-white" 
+                  />
+                </div>
+              )}
+              <div>
+                <label className="block text-gray-400 mb-1">Email Address</label>
+                <input 
+                  type="email" 
+                  required
+                  placeholder="name@example.tn"
+                  value={authEmail}
+                  onChange={(e) => setAuthEmail(e.target.value)}
+                  className="w-full px-3 py-2.5 rounded-xl bg-[#0B0D0F] border border-white/15 text-white" 
+                />
+              </div>
+              <div>
+                <label className="block text-gray-400 mb-1">Password</label>
+                <input 
+                  type="password" 
+                  required
+                  placeholder="••••••••"
+                  value={authPassword}
+                  onChange={(e) => setAuthPassword(e.target.value)}
+                  className="w-full px-3 py-2.5 rounded-xl bg-[#0B0D0F] border border-white/15 text-white" 
+                />
+              </div>
+
+              <button
+                type="submit"
+                className="w-full py-3 rounded-xl bg-[#B8F34A] text-black font-extrabold text-sm hover:brightness-110 transition mt-2"
+              >
+                {authMode === "login" ? "Sign In →" : "Register Account →"}
+              </button>
+
+              <div className="text-center pt-2">
+                <button
+                  type="button"
+                  onClick={() => setAuthMode(authMode === "login" ? "signup" : "login")}
+                  className="text-gray-400 hover:text-[#B8F34A] text-xs underline"
+                >
+                  {authMode === "login" ? "Need an account? Sign up" : "Already have an account? Sign in"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* SIDEBAR NAVIGATION */}
       <aside className="hidden md:flex md:w-64 md:flex-col bg-[#15191D] border-r border-white/10 shrink-0">
         <div className="p-5 flex items-center justify-between border-b border-white/10">
-          <div className="flex items-center gap-2.5">
-            <div className="w-9 h-9 rounded-xl bg-[#B8F34A] flex items-center justify-center text-black font-black text-sm">
-              FF
-            </div>
-            <div>
-              <span className="font-extrabold tracking-tight text-lg block leading-none">
-                FITFORGE
-              </span>
-              <span className="text-[10px] font-bold text-[#B8F34A] tracking-wider uppercase">
-                TRAINING & NUTRITION OS
-              </span>
-            </div>
+          <FitForgeLogo />
+        </div>
+
+        {/* PRO SUBSCRIPTION BOX (20 TND/MO) */}
+        <div className="p-4 m-3 rounded-2xl bg-gradient-to-br from-[#B8F34A]/20 via-[#15191D] to-[#0B0D0F] border border-[#B8F34A]/40 space-y-2.5">
+          <div className="flex items-center gap-2 text-[#B8F34A] font-extrabold text-xs">
+            <Crown className="w-4 h-4 fill-current" />
+            <span>FitForge PRO Member</span>
+          </div>
+          <p className="text-[11px] text-gray-300 leading-relaxed">
+            AI Coach, Cloud Sync & TND Market Optimizers.
+          </p>
+          <div className="text-xs font-black text-white">
+            20 TND <span className="text-[10px] font-normal text-gray-400">/ month</span>
           </div>
           <button
-            onClick={() => setShowLanding(true)}
-            className="text-[11px] px-2 py-1 rounded bg-white/5 text-gray-300 hover:text-[#B8F34A]"
+            onClick={handleUpgradeToPro}
+            className={`w-full py-2 rounded-xl text-xs font-extrabold transition ${
+              isPremium
+                ? "bg-white/10 text-white border border-white/20"
+                : "bg-[#B8F34A] text-black hover:brightness-110"
+            }`}
           >
-            Hero
+            {isPremium ? "✓ PRO Active" : "Upgrade for 20 TND/mo"}
           </button>
         </div>
 
-        <div className="px-4 pt-3">
-          <div className="p-3 rounded-xl bg-[#0B0D0F] border border-white/10 flex items-center justify-between text-xs">
-            <div>
-              <div className="font-bold text-white">Local Demo Mode</div>
-              <div className="text-[11px] text-gray-400 flex items-center gap-1.5 mt-0.5">
-                <span className="w-2 h-2 rounded-full bg-[#B8F34A]" /> Browser
-                Storage Active
-              </div>
-            </div>
-            <button
-              onClick={() => setActiveTab("tests")}
-              className="text-[#B8F34A] font-bold hover:underline"
-            >
-              Tests/SQL
-            </button>
-          </div>
-        </div>
-
         <nav className="p-3 space-y-1 flex-1">
-          {navItems.map((item) => {
+          {[
+            { id: "dashboard", label: "Dashboard", icon: TrendingUp },
+            { id: "workouts", label: "Workout Library", icon: Dumbbell },
+            { id: "nutrition", label: "Nutrition & Macros", icon: Flame },
+            { id: "meals", label: "Tunisian Meal Plan", icon: Utensils },
+            { id: "premium", label: "AI Coach & PRO Tools", icon: Crown, proOnly: true }
+          ].map((item) => {
             const Icon = item.icon;
             const active = activeTab === item.id;
             return (
               <button
                 key={item.id}
                 onClick={() => setActiveTab(item.id)}
-                className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-sm font-medium transition ${
+                className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-sm font-medium transition ${
                   active
-                    ? "bg-[#B8F34A] text-black font-bold shadow-lg shadow-[#B8F34A]/10"
+                    ? "bg-[#B8F34A] text-black font-bold shadow-lg"
                     : "text-gray-400 hover:text-white hover:bg-white/5"
                 }`}
               >
-                <Icon className="w-4 h-4" />
-                <span>{item.label}</span>
+                <div className="flex items-center gap-3">
+                  <Icon className="w-4 h-4" />
+                  <span>{item.label}</span>
+                </div>
+                {item.proOnly && !isPremium && <Lock className="w-3.5 h-3.5 text-amber-400" />}
               </button>
             );
           })}
         </nav>
 
-        <div className="p-4 m-3 rounded-xl bg-[#0B0D0F] border border-white/10 text-xs space-y-1">
-          <div className="flex items-center justify-between text-gray-400">
-            <span>Goal</span>
-            <span className="text-[#B8F34A] font-semibold uppercase">
-              {profile.goal.replace("_", " ")}
-            </span>
+        {/* AUTH FOOTER */}
+        <div className="p-4 m-3 rounded-xl bg-[#0B0D0F] border border-white/10 text-xs flex items-center justify-between">
+          <div className="truncate">
+            <div className="font-bold text-white truncate">{user ? user.email : "Guest Mode"}</div>
+            <div className="text-[10px] text-[#B8F34A]">{isPremium ? "PRO Tier" : "Free Tier"}</div>
           </div>
-          <div className="flex items-center justify-between text-gray-400">
-            <span>Daily Target</span>
-            <span className="text-white font-bold">
-              {nutritionTargets.dailyCalories} kcal
-            </span>
-          </div>
-          <div className="flex items-center justify-between text-gray-400">
-            <span>Protein Target</span>
-            <span className="text-white font-bold">
-              {nutritionTargets.proteinGrams}g
-            </span>
-          </div>
+          {user ? (
+            <button onClick={handleLogout} className="p-1.5 rounded-lg bg-red-500/20 text-red-400 hover:bg-red-500/30" title="Sign Out">
+              <LogOut className="w-4 h-4" />
+            </button>
+          ) : (
+            <button 
+              onClick={() => { setAuthMode("login"); setShowAuthModal(true); }}
+              className="px-2.5 py-1.5 rounded-lg bg-[#B8F34A] text-black font-bold text-[11px]"
+            >
+              Sign In
+            </button>
+          )}
         </div>
       </aside>
-
-      {/* MOBILE TOP BAR */}
-      <div className="md:hidden flex items-center justify-between px-4 py-3 bg-[#15191D] border-b border-white/10">
-        <div className="flex items-center gap-2">
-          <div className="w-7 h-7 rounded-lg bg-[#B8F34A] flex items-center justify-center text-black font-black text-xs">
-            FF
-          </div>
-          <span className="font-extrabold">
-            FIT<span className="text-[#B8F34A]">FORGE</span>
-          </span>
-        </div>
-        <button
-          onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-          className="p-2 rounded-lg bg-white/5 text-white"
-        >
-          <Menu className="w-5 h-5" />
-        </button>
-      </div>
-
-      {mobileMenuOpen && (
-        <div className="md:hidden bg-[#15191D] border-b border-white/10 p-3 grid grid-cols-2 gap-2">
-          {navItems.map((item) => {
-            const Icon = item.icon;
-            return (
-              <button
-                key={item.id}
-                onClick={() => {
-                  setActiveTab(item.id);
-                  setMobileMenuOpen(false);
-                }}
-                className={`flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-semibold ${
-                  activeTab === item.id
-                    ? "bg-[#B8F34A] text-black"
-                    : "text-gray-300 bg-[#0B0D0F]"
-                }`}
-              >
-                <Icon className="w-3.5 h-3.5" />
-                {item.label}
-              </button>
-            );
-          })}
-        </div>
-      )}
 
       {/* MAIN CONTENT AREA */}
       <main className="flex-1 p-5 md:p-8 overflow-y-auto max-w-7xl mx-auto w-full space-y-6">
@@ -2224,181 +483,39 @@ export default function App() {
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-[#15191D] border border-white/10 rounded-2xl p-6">
               <div>
                 <span className="text-xs uppercase tracking-wider text-[#B8F34A] font-bold">
-                  Connected Training & Nutrition Hub
+                  Training & Nutrition Command Center
                 </span>
                 <h1 className="text-2xl md:text-3xl font-black mt-1">
                   Welcome back, {profile.name}
                 </h1>
                 <p className="text-sm text-gray-400 mt-1">
-                  Experience:{" "}
-                  <strong className="text-white capitalize">
-                    {profile.experience}
-                  </strong>{" "}
-                  • Schedule:{" "}
-                  <strong className="text-white">
-                    {profile.daysPerWeek} days/week
-                  </strong>{" "}
-                  • Equipment:{" "}
-                  <strong className="text-white">{profile.equipment}</strong>
+                  Goal: <strong className="text-white capitalize">{profile.goal.replace("_", " ")}</strong> • Status:{" "}
+                  <strong className="text-[#B8F34A]">{isPremium ? "FitForge PRO (20 TND/mo)" : "Free Member"}</strong>
                 </p>
               </div>
-              <div className="flex flex-wrap gap-2.5">
+
+              {!isPremium && (
                 <button
-                  onClick={() => setActiveTab("workouts")}
-                  className="px-4 py-2.5 rounded-xl bg-[#B8F34A] text-black font-bold text-xs flex items-center gap-1.5 hover:brightness-110 transition"
+                  onClick={handleUpgradeToPro}
+                  className="px-5 py-3 rounded-xl bg-gradient-to-r from-[#B8F34A] to-[#9EE022] text-black font-black text-xs flex items-center gap-2 shadow-lg hover:brightness-110 transition"
                 >
-                  <Play className="w-4 h-4 fill-current" /> Start Today's
-                  Workout
+                  <Crown className="w-4 h-4 fill-current" /> Upgrade to PRO — 20 TND/mo
                 </button>
-                <button
-                  onClick={() => setActiveTab("exercises")}
-                  className="px-4 py-2.5 rounded-xl bg-[#0B0D0F] border border-white/15 text-white font-semibold text-xs flex items-center gap-1.5 hover:bg-white/10 transition"
-                >
-                  <Activity className="w-4 h-4 text-[#B8F34A]" /> GIF Demos &
-                  Videos
-                </button>
-              </div>
+              )}
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
               <div className="bg-[#15191D] border border-white/10 rounded-2xl p-5">
-                <div className="flex items-center justify-between text-xs text-gray-400">
-                  <span>Daily Calorie Target</span>
-                  <Flame className="w-4 h-4 text-[#B8F34A]" />
-                </div>
-                <div className="text-2xl font-black mt-2">
-                  {loggedTotals.calories}{" "}
-                  <span className="text-sm font-normal text-gray-400">
-                    / {nutritionTargets.dailyCalories} kcal
-                  </span>
-                </div>
-                <div className="mt-3 h-2 w-full bg-[#0B0D0F] rounded-full overflow-hidden">
-                  <div
-                    className="h-full bg-[#B8F34A]"
-                    style={{
-                      width: `${Math.min(
-                        100,
-                        Math.round(
-                          (loggedTotals.calories /
-                            nutritionTargets.dailyCalories) *
-                            100
-                        )
-                      )}%`
-                    }}
-                  />
-                </div>
+                <span className="text-xs text-gray-400">Daily Calorie Target</span>
+                <div className="text-2xl font-black mt-2">{nutritionTargets.dailyCalories} kcal</div>
               </div>
-
               <div className="bg-[#15191D] border border-white/10 rounded-2xl p-5">
-                <div className="flex items-center justify-between text-xs text-gray-400">
-                  <span>Protein Progress</span>
-                  <Award className="w-4 h-4 text-[#B8F34A]" />
-                </div>
-                <div className="text-2xl font-black mt-2">
-                  {loggedTotals.protein}g{" "}
-                  <span className="text-sm font-normal text-gray-400">
-                    / {nutritionTargets.proteinGrams}g
-                  </span>
-                </div>
-                <p className="text-xs text-gray-400 mt-2">
-                  Carbs: {loggedTotals.carbs}g / {nutritionTargets.carbGrams}g •
-                  Fat: {loggedTotals.fat}g / {nutritionTargets.fatGrams}g
-                </p>
+                <span className="text-xs text-gray-400">Protein Target</span>
+                <div className="text-2xl font-black mt-2">{nutritionTargets.proteinGrams}g / day</div>
               </div>
-
               <div className="bg-[#15191D] border border-white/10 rounded-2xl p-5">
-                <div className="flex items-center justify-between text-xs text-gray-400">
-                  <span>Today's Scheduled Session</span>
-                  <Dumbbell className="w-4 h-4 text-[#B8F34A]" />
-                </div>
-                <div className="text-lg font-extrabold mt-2 truncate">
-                  {currentWorkout.name}
-                </div>
-                <p className="text-xs text-gray-400 mt-1">
-                  {currentWorkout.exercises.length} exercises • ~
-                  {currentWorkout.durationMinutes} min
-                </p>
-              </div>
-
-              <div className="bg-[#15191D] border border-white/10 rounded-2xl p-5">
-                <div className="flex items-center justify-between text-xs text-gray-400">
-                  <span>Current Body Weight</span>
-                  <Scale className="w-4 h-4 text-[#B8F34A]" />
-                </div>
-                <div className="text-2xl font-black mt-2">
-                  {profile.weightKg} kg
-                </div>
-                <p className="text-xs text-gray-400 mt-1">
-                  Target: {profile.targetWeightKg} kg • BMI:{" "}
-                  {nutritionTargets.bmi} (Screening)
-                </p>
-              </div>
-            </div>
-
-            <div className="bg-[#15191D] border border-white/10 rounded-2xl p-6">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-4">
-                <div>
-                  <h2 className="text-lg font-bold">
-                    Today's Exercises — Click Any Exercise for Realistic GIF
-                    Loop & Video
-                  </h2>
-                  <p className="text-xs text-gray-400">
-                    {currentWorkout.focus} • {currentWorkout.levelNote}
-                  </p>
-                </div>
-                <button
-                  onClick={() => setActiveTab("workouts")}
-                  className="text-xs font-bold text-[#B8F34A] hover:underline flex items-center gap-1"
-                >
-                  Open Full Logger <ChevronRight className="w-4 h-4" />
-                </button>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                {currentWorkout.exercises.map((ex) => (
-                  <div
-                    key={ex.id}
-                    className="bg-[#0B0D0F] border border-white/10 rounded-xl overflow-hidden flex flex-col justify-between group hover:border-[#B8F34A]/50 transition"
-                  >
-                    <div
-                      onClick={() => setActiveVideoExercise(ex)}
-                      className="relative h-36 w-full overflow-hidden cursor-pointer bg-black"
-                    >
-                      <img
-                        src={ex.thumbnailUrl}
-                        alt={ex.name}
-                        className="w-full h-full object-cover opacity-80 group-hover:scale-105 transition duration-300"
-                      />
-                      <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent" />
-                      <div className="absolute inset-0 flex items-center justify-center">
-                        <span className="w-11 h-11 rounded-full bg-[#B8F34A] text-black flex items-center justify-center shadow-lg group-hover:scale-110 transition">
-                          <Play className="w-5 h-5 fill-current ml-0.5" />
-                        </span>
-                      </div>
-                      <span className="absolute bottom-2 left-2.5 text-[11px] font-bold px-2 py-0.5 rounded bg-black/70 text-[#B8F34A]">
-                        {ex.muscleGroup}
-                      </span>
-                    </div>
-
-                    <div className="p-3.5 flex-1 flex flex-col justify-between">
-                      <div>
-                        <h3 className="font-bold text-sm text-white">
-                          {ex.name}
-                        </h3>
-                        <p className="text-xs text-gray-400 mt-0.5">
-                          {ex.defaultSets} sets × {ex.repRange[0]}–
-                          {ex.repRange[1]} reps • {ex.rir}
-                        </p>
-                      </div>
-                      <button
-                        onClick={() => setActiveVideoExercise(ex)}
-                        className="mt-3 w-full py-1.5 px-3 rounded-lg bg-[#B8F34A]/15 hover:bg-[#B8F34A] text-[#B8F34A] hover:text-black font-semibold text-xs transition flex items-center justify-center gap-1.5"
-                      >
-                        <Activity className="w-3.5 h-3.5" /> GIF Loop & Video
-                      </button>
-                    </div>
-                  </div>
-                ))}
+                <span className="text-xs text-gray-400">Cloud Sync Status</span>
+                <div className="text-lg font-extrabold mt-2 text-[#B8F34A]">{user ? "Connected to Supabase" : "Offline / Local Mode"}</div>
               </div>
             </div>
           </div>
@@ -2406,472 +523,15 @@ export default function App() {
 
         {activeTab === "workouts" && (
           <div className="space-y-6">
-            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-[#15191D] border border-white/10 rounded-2xl p-6">
-              <div>
-                <h1 className="text-2xl font-black">
-                  Adaptive Workout Planner & Logger
-                </h1>
-                <p className="text-xs text-gray-400 mt-1">
-                  Generated for{" "}
-                  <strong className="text-white capitalize">
-                    {profile.experience}
-                  </strong>{" "}
-                  level • {profile.daysPerWeek} days/week •{" "}
-                  <strong className="text-[#B8F34A]">{profile.equipment}</strong>
-                </p>
-              </div>
-
-              <div className="flex flex-wrap items-center gap-2.5">
-                <div className="px-4 py-2 rounded-xl bg-[#0B0D0F] border border-white/10 flex items-center gap-2 text-xs">
-                  <Clock className="w-4 h-4 text-[#B8F34A]" />
-                  <span>Rest Timer:</span>
-                  <strong className="text-sm font-mono text-[#B8F34A]">
-                    {Math.floor(restTimer / 60)}:
-                    {String(restTimer % 60).padStart(2, "0")}
-                  </strong>
-                </div>
-                <button
-                  onClick={() => setRestTimer(90)}
-                  className="px-3 py-2 rounded-xl bg-white/10 hover:bg-white/15 text-xs font-semibold"
-                >
-                  90s Rest
-                </button>
-                <button
-                  onClick={() => {
-                    setWorkoutHistory([
-                      {
-                        id: `sess_${Date.now()}`,
-                        date: "2026-10-26",
-                        name: currentWorkout.name,
-                        totalSets: 12,
-                        topPR: `${currentWorkout.exercises[0].name} Completed`
-                      },
-                      ...workoutHistory
-                    ]);
-                  }}
-                  className="px-4 py-2 rounded-xl bg-[#B8F34A] text-black font-extrabold text-xs"
-                >
-                  ✓ Save Session
-                </button>
-              </div>
-            </div>
-
-            <div className="flex flex-wrap gap-2">
-              {workoutPlan.map((session, idx) => (
-                <button
-                  key={session.id}
-                  onClick={() => setSelectedSessionIdx(idx)}
-                  className={`px-4 py-2.5 rounded-xl text-xs font-bold transition ${
-                    selectedSessionIdx === idx
-                      ? "bg-[#B8F34A] text-black"
-                      : "bg-[#15191D] text-gray-300 border border-white/10 hover:bg-white/5"
-                  }`}
-                >
-                  Day {idx + 1}: {session.name}
-                </button>
-              ))}
-            </div>
-
-            <div className="space-y-4">
-              {currentWorkout.exercises.map((rawEx) => {
-                const ex = swappedExercises[rawEx.id]
-                  ? EXERCISES_DB.find(
-                      (e) => e.id === swappedExercises[rawEx.id]
-                    ) || rawEx
-                  : rawEx;
-                const isSkipped = !!skippedExercises[ex.id];
-                const sets = workoutSets[ex.id] || [
-                  {
-                    id: 1,
-                    weight: 40,
-                    reps: ex.repRange[0],
-                    isWarmup: false,
-                    completed: false
-                  }
-                ];
-                const overload = evaluateProgressiveOverload(
-                  sets,
-                  ex.repRange[1]
-                );
-
-                return (
-                  <div
-                    key={rawEx.id}
-                    className={`bg-[#15191D] border border-white/10 rounded-2xl p-5 space-y-4 ${
-                      isSkipped ? "opacity-50" : ""
-                    }`}
-                  >
-                    <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-                      <div className="flex items-start gap-4">
-                        <div
-                          onClick={() => setActiveVideoExercise(ex)}
-                          className="relative w-28 h-20 rounded-xl overflow-hidden shrink-0 cursor-pointer group border border-white/10"
-                        >
-                          <img
-                            src={ex.thumbnailUrl}
-                            alt={ex.name}
-                            className="w-full h-full object-cover group-hover:scale-105 transition"
-                          />
-                          <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
-                            <div className="w-8 h-8 rounded-full bg-[#B8F34A] text-black flex items-center justify-center shadow">
-                              <Play className="w-4 h-4 fill-current ml-0.5" />
-                            </div>
-                          </div>
-                        </div>
-
-                        <div>
-                          <div className="flex items-center gap-2 flex-wrap">
-                            <h3 className="text-lg font-extrabold text-white">
-                              {ex.name}
-                            </h3>
-                            <span className="px-2 py-0.5 rounded bg-[#B8F34A]/15 text-[#B8F34A] text-xs font-semibold">
-                              {ex.muscleGroup}
-                            </span>
-                            <span className="px-2 py-0.5 rounded bg-white/5 text-gray-300 text-xs">
-                              {ex.equipment}
-                            </span>
-                          </div>
-                          <p className="text-xs text-gray-400 mt-1">
-                            Target: {ex.defaultSets} sets × {ex.repRange[0]}–
-                            {ex.repRange[1]} reps • Rest {ex.restSeconds}s •{" "}
-                            {ex.rir}
-                          </p>
-                          <p className="text-xs text-gray-300 mt-1">
-                            Cue: <em>"{ex.cues[0]}"</em>
-                          </p>
-                        </div>
-                      </div>
-
-                      <div className="flex flex-wrap gap-2">
-                        <button
-                          onClick={() => setActiveVideoExercise(ex)}
-                          className="px-4 py-2.5 rounded-xl bg-[#B8F34A] text-black font-bold text-xs flex items-center gap-2 hover:brightness-110 transition"
-                        >
-                          <Activity className="w-4 h-4" /> GIF Loop & Video
-                        </button>
-                        {ex.alternativeId && (
-                          <button
-                            onClick={() =>
-                              setSwappedExercises({
-                                ...swappedExercises,
-                                [rawEx.id]:
-                                  swappedExercises[rawEx.id] ===
-                                  ex.alternativeId
-                                    ? rawEx.id
-                                    : ex.alternativeId
-                              })
-                            }
-                            className="px-3 py-2.5 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-xs font-semibold text-gray-200"
-                          >
-                            Swap Alternative
-                          </button>
-                        )}
-                        <button
-                          onClick={() =>
-                            setSkippedExercises({
-                              ...skippedExercises,
-                              [ex.id]: !isSkipped
-                            })
-                          }
-                          className="px-3 py-2.5 rounded-xl bg-white/5 text-xs text-gray-400"
-                        >
-                          {isSkipped ? "Unskip" : "Skip"}
-                        </button>
-                      </div>
-                    </div>
-
-                    {!isSkipped && (
-                      <>
-                        <div className="overflow-x-auto">
-                          <table className="w-full text-left text-xs">
-                            <thead>
-                              <tr className="text-gray-400 border-b border-white/10">
-                                <th className="py-2 pr-3">Set</th>
-                                <th className="py-2 px-3">Type</th>
-                                <th className="py-2 px-3">Load (kg)</th>
-                                <th className="py-2 px-3">Reps</th>
-                                <th className="py-2 pl-3">Status</th>
-                              </tr>
-                            </thead>
-                            <tbody className="divide-y divide-white/5">
-                              {sets.map((s, sIdx) => (
-                                <tr key={s.id}>
-                                  <td className="py-2.5 pr-3 font-bold">
-                                    #{sIdx + 1}
-                                  </td>
-                                  <td className="py-2.5 px-3">
-                                    <button
-                                      onClick={() => {
-                                        const updated = sets.map((item, i) =>
-                                          i === sIdx
-                                            ? {
-                                                ...item,
-                                                isWarmup: !item.isWarmup
-                                              }
-                                            : item
-                                        );
-                                        setWorkoutSets({
-                                          ...workoutSets,
-                                          [ex.id]: updated
-                                        });
-                                      }}
-                                      className={`px-2 py-1 rounded text-[11px] font-semibold ${
-                                        s.isWarmup
-                                          ? "bg-amber-500/20 text-amber-300"
-                                          : "bg-white/10 text-white"
-                                      }`}
-                                    >
-                                      {s.isWarmup ? "Warm-up" : "Working"}
-                                    </button>
-                                  </td>
-                                  <td className="py-2.5 px-3">
-                                    <input
-                                      type="number"
-                                      value={s.weight}
-                                      onChange={(e) => {
-                                        const updated = sets.map((item, i) =>
-                                          i === sIdx
-                                            ? {
-                                                ...item,
-                                                weight: Number(e.target.value)
-                                              }
-                                            : item
-                                        );
-                                        setWorkoutSets({
-                                          ...workoutSets,
-                                          [ex.id]: updated
-                                        });
-                                      }}
-                                      className="w-20 px-2.5 py-1 rounded bg-[#0B0D0F] border border-white/15 text-white font-semibold"
-                                    />
-                                  </td>
-                                  <td className="py-2.5 px-3">
-                                    <input
-                                      type="number"
-                                      value={s.reps}
-                                      onChange={(e) => {
-                                        const updated = sets.map((item, i) =>
-                                          i === sIdx
-                                            ? {
-                                                ...item,
-                                                reps: Number(e.target.value)
-                                              }
-                                            : item
-                                        );
-                                        setWorkoutSets({
-                                          ...workoutSets,
-                                          [ex.id]: updated
-                                        });
-                                      }}
-                                      className="w-16 px-2.5 py-1 rounded bg-[#0B0D0F] border border-white/15 text-white font-semibold"
-                                    />
-                                  </td>
-                                  <td className="py-2.5 pl-3">
-                                    <button
-                                      onClick={() => {
-                                        const updated = sets.map((item, i) =>
-                                          i === sIdx
-                                            ? {
-                                                ...item,
-                                                completed: !item.completed
-                                              }
-                                            : item
-                                        );
-                                        setWorkoutSets({
-                                          ...workoutSets,
-                                          [ex.id]: updated
-                                        });
-                                        if (!s.completed)
-                                          setRestTimer(ex.restSeconds);
-                                      }}
-                                      className={`px-3 py-1 rounded-lg font-bold flex items-center gap-1 ${
-                                        s.completed
-                                          ? "bg-[#B8F34A] text-black"
-                                          : "bg-white/5 text-gray-400 hover:text-white"
-                                      }`}
-                                    >
-                                      <Check className="w-3.5 h-3.5" />
-                                      {s.completed ? "Logged" : "Mark Done"}
-                                    </button>
-                                  </td>
-                                </tr>
-                              ))}
-                            </tbody>
-                          </table>
-                        </div>
-
-                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-2 border-t border-white/10">
-                          <button
-                            onClick={() => {
-                              const last = sets[sets.length - 1] || {
-                                weight: 40,
-                                reps: 10
-                              };
-                              setWorkoutSets({
-                                ...workoutSets,
-                                [ex.id]: [
-                                  ...sets,
-                                  {
-                                    id: Date.now(),
-                                    weight: last.weight,
-                                    reps: last.reps,
-                                    isWarmup: false,
-                                    completed: false
-                                  }
-                                ]
-                              });
-                            }}
-                            className="text-xs font-semibold text-[#B8F34A] hover:underline flex items-center gap-1"
-                          >
-                            <Plus className="w-3.5 h-3.5" /> Add Working Set
-                          </button>
-
-                          <div
-                            className={`text-xs px-3 py-1.5 rounded-lg border ${
-                              overload.readyForIncrease
-                                ? "bg-[#B8F34A]/10 border-[#B8F34A]/40 text-[#B8F34A]"
-                                : "bg-[#0B0D0F] border-white/10 text-gray-300"
-                            }`}
-                          >
-                            <strong>Progression Engine:</strong>{" "}
-                            {overload.suggestion}
-                          </div>
-                        </div>
-                      </>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        )}
-
-        {activeTab === "exercises" && (
-          <div className="space-y-6">
-            <div className="bg-[#15191D] border border-white/10 rounded-2xl p-6">
-              <h1 className="text-2xl font-black">
-                Visual Exercise Library & 60fps GIF-Style Biomechanical Demos
-              </h1>
-              <p className="text-xs text-gray-400 mt-1">
-                Click any exercise card to launch the{" "}
-                <strong className="text-[#B8F34A]">
-                  Realistic 60fps Articulated GIF Loop
-                </strong>{" "}
-                (with muscle activation heatmaps and slow-motion controls) or
-                open the direct HD YouTube video.
-              </p>
-
-              <div className="mt-4 grid grid-cols-1 sm:grid-cols-3 gap-3">
-                <div className="relative">
-                  <Search className="w-4 h-4 text-gray-400 absolute left-3.5 top-3" />
-                  <input
-                    type="text"
-                    placeholder="Search exercise or muscle..."
-                    value={exerciseSearch}
-                    onChange={(e) => setExerciseSearch(e.target.value)}
-                    className="w-full pl-9 pr-3 py-2 rounded-xl bg-[#0B0D0F] border border-white/15 text-sm text-white"
-                  />
-                </div>
-
-                <select
-                  value={muscleFilter}
-                  onChange={(e) => setMuscleFilter(e.target.value)}
-                  className="px-3 py-2 rounded-xl bg-[#0B0D0F] border border-white/15 text-sm text-white"
-                >
-                  <option value="All">All Muscle Groups</option>
-                  <option value="Chest">Chest</option>
-                  <option value="Back">Back</option>
-                  <option value="Legs">Legs</option>
-                  <option value="Shoulders">Shoulders</option>
-                  <option value="Arms">Arms</option>
-                  <option value="Glutes">Glutes</option>
-                  <option value="Calves">Calves</option>
-                  <option value="Core">Core</option>
-                </select>
-
-                <select
-                  value={equipmentFilter}
-                  onChange={(e) => setEquipmentFilter(e.target.value)}
-                  className="px-3 py-2 rounded-xl bg-[#0B0D0F] border border-white/15 text-sm text-white"
-                >
-                  <option value="All">All Equipment</option>
-                  <option value="Full Gym">Full Gym</option>
-                  <option value="Dumbbells">Dumbbells</option>
-                  <option value="Bodyweight">Bodyweight</option>
-                </select>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-              {EXERCISES_DB.filter((ex) => {
-                const matchesSearch =
-                  ex.name
-                    .toLowerCase()
-                    .includes(exerciseSearch.toLowerCase()) ||
-                  ex.muscleGroup
-                    .toLowerCase()
-                    .includes(exerciseSearch.toLowerCase());
-                const matchesMuscle =
-                  muscleFilter === "All" || ex.muscleGroup === muscleFilter;
-                const matchesEquip =
-                  equipmentFilter === "All" ||
-                  ex.equipment === equipmentFilter;
-                return matchesSearch && matchesMuscle && matchesEquip;
-              }).map((ex) => (
-                <div
-                  key={ex.id}
-                  className="bg-[#15191D] border border-white/10 rounded-2xl overflow-hidden flex flex-col justify-between group hover:border-[#B8F34A]/60 transition"
-                >
+            <h2 className="text-xl font-black">Workout Library</h2>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {EXERCISES_DB.map(ex => (
+                <div key={ex.id} className="bg-[#15191D] border border-white/10 rounded-2xl p-4 flex gap-4 items-center">
+                  <img src={ex.thumbnailUrl} alt={ex.name} className="w-20 h-20 rounded-xl object-cover border border-white/10" />
                   <div>
-                    <div
-                      onClick={() => setActiveVideoExercise(ex)}
-                      className="relative h-48 w-full bg-black cursor-pointer overflow-hidden"
-                    >
-                      <img
-                        src={ex.thumbnailUrl}
-                        alt={ex.name}
-                        className="w-full h-full object-cover opacity-85 group-hover:scale-105 transition duration-300"
-                      />
-                      <div className="absolute inset-0 bg-gradient-to-t from-[#15191D] via-black/30 to-transparent" />
-                      <div className="absolute inset-0 flex items-center justify-center">
-                        <div className="px-4 py-2 rounded-full bg-[#B8F34A] text-black font-extrabold text-xs flex items-center gap-1.5 shadow-xl group-hover:scale-105 transition">
-                          <Activity className="w-4 h-4" /> GIF Loop & Video
-                        </div>
-                      </div>
-                      <span className="absolute top-3 left-3 px-2.5 py-1 rounded-md bg-black/80 text-[#B8F34A] text-xs font-bold">
-                        {ex.muscleGroup}
-                      </span>
-                      <span className="absolute top-3 right-3 px-2.5 py-1 rounded-md bg-black/80 text-white text-xs">
-                        {ex.equipment}
-                      </span>
-                    </div>
-
-                    <div className="p-5">
-                      <h3 className="text-lg font-extrabold text-white">
-                        {ex.name}
-                      </h3>
-                      <p className="text-xs text-gray-400 mt-1">
-                        Secondary: {ex.secondaryMuscles.join(", ")} •{" "}
-                        {ex.difficulty}
-                      </p>
-                      <ul className="mt-3 space-y-1.5 text-xs text-gray-300">
-                        {ex.cues.slice(0, 2).map((cue, idx) => (
-                          <li key={idx} className="flex items-start gap-1.5">
-                            <span className="text-[#B8F34A] font-bold">•</span>
-                            <span>{cue}</span>
-                          </li>
-                        ))}
-                      </ul>
-                    </div>
-                  </div>
-
-                  <div className="px-5 pb-5">
-                    <button
-                      onClick={() => setActiveVideoExercise(ex)}
-                      className="w-full py-2.5 px-4 rounded-xl bg-[#B8F34A] text-black font-bold text-xs flex items-center justify-center gap-2 hover:brightness-110 transition"
-                    >
-                      <Activity className="w-4 h-4" /> Open 60fps GIF & Video
-                    </button>
+                    <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-[#B8F34A]/15 text-[#B8F34A]">{ex.muscleGroup}</span>
+                    <h3 className="font-bold text-sm mt-1">{ex.name}</h3>
+                    <p className="text-xs text-gray-400 mt-0.5">{ex.cues[0]}</p>
                   </div>
                 </div>
               ))}
@@ -2881,1169 +541,73 @@ export default function App() {
 
         {activeTab === "nutrition" && (
           <div className="space-y-6">
-            <div className="bg-[#15191D] border border-white/10 rounded-2xl p-6">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                <div>
-                  <span className="text-xs font-extrabold uppercase tracking-wider text-[#B8F34A]">
-                    MIFFLIN–ST JEOR METABOLIC ENGINE
-                  </span>
-                  <h1 className="text-2xl font-black mt-1">
-                    Nutrition & Macronutrient Calculator
-                  </h1>
-                  <p className="text-xs text-gray-400 mt-1">
-                    Estimates BMR, TDEE, and daily macro targets. All outputs
-                    are educational estimates, not medical prescriptions.
-                  </p>
-                </div>
-
-                <div className="inline-flex rounded-xl bg-[#0B0D0F] p-1 border border-white/10 self-start">
-                  <button
-                    onClick={() =>
-                      setProfile({ ...profile, unitSystem: "metric" })
-                    }
-                    className={`px-3.5 py-2 rounded-lg text-xs font-bold ${
-                      profile.unitSystem === "metric"
-                        ? "bg-[#B8F34A] text-black"
-                        : "text-gray-400"
-                    }`}
-                  >
-                    Metric (kg / cm)
-                  </button>
-                  <button
-                    onClick={() =>
-                      setProfile({ ...profile, unitSystem: "imperial" })
-                    }
-                    className={`px-3.5 py-2 rounded-lg text-xs font-bold ${
-                      profile.unitSystem === "imperial"
-                        ? "bg-[#B8F34A] text-black"
-                        : "text-gray-400"
-                    }`}
-                  >
-                    Imperial (lbs / ft-in)
-                  </button>
-                </div>
+            <h2 className="text-xl font-black">Nutrition Calculator & Macros</h2>
+            <div className="bg-[#15191D] border border-white/10 rounded-2xl p-6 grid grid-cols-2 md:grid-cols-4 gap-4 text-center">
+              <div className="p-4 bg-[#0B0D0F] rounded-xl border border-white/5">
+                <div className="text-xs text-gray-400">Calories</div>
+                <div className="text-xl font-black mt-1 text-[#B8F34A]">{nutritionTargets.dailyCalories}</div>
               </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-6">
-                <div>
-                  <label className="block text-xs text-gray-400 mb-1">
-                    Weight (
-                    {profile.unitSystem === "imperial"
-                      ? `${Math.round(profile.weightKg * 2.20462)} lbs`
-                      : "kg"}
-                    )
-                  </label>
-                  <input
-                    type="number"
-                    value={profile.weightKg}
-                    onChange={(e) =>
-                      setProfile({
-                        ...profile,
-                        weightKg: Number(e.target.value)
-                      })
-                    }
-                    className="w-full px-3 py-2 rounded-xl bg-[#0B0D0F] border border-white/15 text-white"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs text-gray-400 mb-1">
-                    Height (
-                    {profile.unitSystem === "imperial"
-                      ? `${Math.floor(profile.heightCm / 30.48)}'${Math.round(
-                          (profile.heightCm % 30.48) / 2.54
-                        )}"`
-                      : "cm"}
-                    )
-                  </label>
-                  <input
-                    type="number"
-                    value={profile.heightCm}
-                    onChange={(e) =>
-                      setProfile({
-                        ...profile,
-                        heightCm: Number(e.target.value)
-                      })
-                    }
-                    className="w-full px-3 py-2 rounded-xl bg-[#0B0D0F] border border-white/15 text-white"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs text-gray-400 mb-1">
-                    Age (Years)
-                  </label>
-                  <input
-                    type="number"
-                    value={profile.age}
-                    onChange={(e) =>
-                      setProfile({ ...profile, age: Number(e.target.value) })
-                    }
-                    className="w-full px-3 py-2 rounded-xl bg-[#0B0D0F] border border-white/15 text-white"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs text-gray-400 mb-1">
-                    Primary Goal
-                  </label>
-                  <select
-                    value={profile.goal}
-                    onChange={(e) =>
-                      setProfile({
-                        ...profile,
-                        goal: e.target.value,
-                        manualCalorieOverride: ""
-                      })
-                    }
-                    className="w-full px-3 py-2 rounded-xl bg-[#0B0D0F] border border-white/15 text-white"
-                  >
-                    <option value="muscle_gain">Muscle Gain (+250 kcal)</option>
-                    <option value="fat_loss">Fat Loss (-400 kcal)</option>
-                    <option value="recomp">
-                      Body Recomposition (-150 kcal)
-                    </option>
-                    <option value="general_fitness">
-                      Maintenance (0 kcal)
-                    </option>
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-xs text-gray-400 mb-1">
-                    Activity Multiplier
-                  </label>
-                  <select
-                    value={profile.activityMultiplier}
-                    onChange={(e) =>
-                      setProfile({
-                        ...profile,
-                        activityMultiplier: Number(e.target.value)
-                      })
-                    }
-                    className="w-full px-3 py-2 rounded-xl bg-[#0B0D0F] border border-white/15 text-white"
-                  >
-                    <option value={1.2}>Sedentary (1.2×)</option>
-                    <option value={1.375}>Lightly Active (1.375×)</option>
-                    <option value={1.55}>Moderately Active (1.55×)</option>
-                    <option value={1.725}>Very Active (1.725×)</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-xs text-gray-400 mb-1">
-                    Optional Manual Calorie Override
-                  </label>
-                  <input
-                    type="number"
-                    placeholder="Auto-calculated if empty"
-                    value={profile.manualCalorieOverride}
-                    onChange={(e) =>
-                      setProfile({
-                        ...profile,
-                        manualCalorieOverride: e.target.value
-                      })
-                    }
-                    className="w-full px-3 py-2 rounded-xl bg-[#0B0D0F] border border-white/15 text-white"
-                  />
-                </div>
+              <div className="p-4 bg-[#0B0D0F] rounded-xl border border-white/5">
+                <div className="text-xs text-gray-400">Protein</div>
+                <div className="text-xl font-black mt-1">{nutritionTargets.proteinGrams}g</div>
               </div>
-
-              {(nutritionTargets.isUnreasonablyLow ||
-                nutritionTargets.isUnreasonablyHigh) && (
-                <div className="mt-4 p-3 rounded-xl bg-amber-500/15 border border-amber-500/40 text-amber-300 text-xs flex items-center gap-2">
-                  <AlertTriangle className="w-4 h-4 shrink-0" />
-                  <span>
-                    Warning: Manual calorie override is outside conservative
-                    safety bounds.
-                  </span>
-                </div>
-              )}
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-              <div className="bg-[#15191D] border border-white/10 rounded-2xl p-5">
-                <span className="text-xs text-gray-400">
-                  Mifflin–St Jeor BMR
-                </span>
-                <div className="text-2xl font-black mt-1">
-                  {nutritionTargets.bmr} kcal
-                </div>
-                <span className="text-[11px] text-gray-400">
-                  Resting baseline estimate
-                </span>
+              <div className="p-4 bg-[#0B0D0F] rounded-xl border border-white/5">
+                <div className="text-xs text-gray-400">Carbs</div>
+                <div className="text-xl font-black mt-1">{nutritionTargets.carbGrams}g</div>
               </div>
-              <div className="bg-[#15191D] border border-white/10 rounded-2xl p-5">
-                <span className="text-xs text-gray-400">Estimated TDEE</span>
-                <div className="text-2xl font-black mt-1">
-                  {nutritionTargets.tdee} kcal
-                </div>
-                <span className="text-[11px] text-gray-400">
-                  BMR × {profile.activityMultiplier} multiplier
-                </span>
+              <div className="p-4 bg-[#0B0D0F] rounded-xl border border-white/5">
+                <div className="text-xs text-gray-400">Fats</div>
+                <div className="text-xl font-black mt-1">{nutritionTargets.fatGrams}g</div>
               </div>
-              <div className="bg-[#15191D] border border-[#B8F34A]/40 rounded-2xl p-5">
-                <span className="text-xs text-[#B8F34A] font-bold">
-                  Daily Target Calories
-                </span>
-                <div className="text-2xl font-black mt-1 text-[#B8F34A]">
-                  {nutritionTargets.dailyCalories} kcal
-                </div>
-                <span className="text-[11px] text-gray-400">
-                  Reconciled 4P + 4C + 9F
-                </span>
-              </div>
-              <div className="bg-[#15191D] border border-white/10 rounded-2xl p-5">
-                <span className="text-xs text-gray-400">Daily Macro Split</span>
-                <div className="text-sm font-bold mt-2 space-y-1">
-                  <div>Protein: {nutritionTargets.proteinGrams}g</div>
-                  <div>Carbs: {nutritionTargets.carbGrams}g</div>
-                  <div>Fat: {nutritionTargets.fatGrams}g</div>
-                </div>
-              </div>
-            </div>
-
-            <div className="bg-[#15191D] border border-white/10 rounded-2xl p-5">
-              <button
-                onClick={() => setShowMathDetails(!showMathDetails)}
-                className="w-full flex items-center justify-between text-xs font-bold text-[#B8F34A]"
-              >
-                <span>
-                  {showMathDetails ? "▼" : "▶"} View Equations & Macro
-                  Reconciliation Math
-                </span>
-                <span>4P + 4C + 9F = {nutritionTargets.dailyCalories} kcal</span>
-              </button>
-              {showMathDetails && (
-                <div className="mt-3 pt-3 border-t border-white/10 text-xs text-gray-300 space-y-1.5">
-                  <p>
-                    1. BMI Screening = {nutritionTargets.bmi} kg/m² (Screening
-                    tool, not a direct body-fat measurement).
-                  </p>
-                  <p>
-                    2. Mifflin–St Jeor BMR = 10 × {profile.weightKg} + 6.25 ×{" "}
-                    {profile.heightCm} − 5 × {profile.age}{" "}
-                    {profile.sex === "female" ? "− 161" : "+ 5"} ={" "}
-                    {nutritionTargets.bmr} kcal.
-                  </p>
-                  <p>
-                    3. TDEE = {nutritionTargets.bmr} ×{" "}
-                    {profile.activityMultiplier} = {nutritionTargets.tdee} kcal.
-                  </p>
-                </div>
-              )}
             </div>
           </div>
         )}
 
         {activeTab === "meals" && (
           <div className="space-y-6">
-            <div className="bg-[#15191D] border border-white/10 rounded-2xl p-6">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                <div>
-                  <h1 className="text-2xl font-black">
-                    Meal Planner, Live Price Book & Nutrition Log
-                  </h1>
-                  <p className="text-xs text-gray-400 mt-1">
-                    Includes Tunisian & Mediterranean staples referenced to USDA
-                    FoodData Central. Click{" "}
-                    <strong className="text-[#B8F34A]">
-                      "Update Market Prices"
-                    </strong>{" "}
-                    anytime to keep ingredient costs synced with your local
-                    supermarket or market.
-                  </p>
-                </div>
-
-                <button
-                  onClick={() => setShowPriceEditor(!showPriceEditor)}
-                  className="px-4 py-2.5 rounded-xl bg-[#B8F34A] text-black font-extrabold text-xs flex items-center gap-2 self-start shrink-0 hover:brightness-110 transition"
-                >
-                  <Edit3 className="w-4 h-4" />
-                  {showPriceEditor
-                    ? "Close Market Price Book"
-                    : "Update Market Prices (TND)"}
-                </button>
-              </div>
-
-              {showPriceEditor && (
-                <div className="mt-5 p-4 rounded-xl bg-[#0B0D0F] border border-[#B8F34A]/40 space-y-4">
-                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-white/10 pb-3">
-                    <div>
-                      <h3 className="text-sm font-extrabold text-[#B8F34A]">
-                        Live Tunisian Market Price Book (Auto-Updates All Meals &
-                        7-Day Grocery Totals)
-                      </h3>
-                      <p className="text-[11px] text-gray-400">
-                        Edit the serving cost in TND below—changes persist in
-                        your browser and recalculate every meal immediately.
-                      </p>
-                    </div>
-                    <button
-                      onClick={() => setCustomPricesTND({})}
-                      className="px-3 py-1.5 rounded-lg bg-white/10 hover:bg-white/15 text-xs font-semibold text-gray-200 flex items-center gap-1 self-start"
-                    >
-                      <RotateCcw className="w-3.5 h-3.5" /> Reset Default Prices
-                    </button>
-                  </div>
-
-                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                    {foodsDb.map((f) => (
-                      <div
-                        key={f.id}
-                        className="p-3 rounded-xl bg-[#15191D] border border-white/10 flex items-center justify-between gap-2 text-xs"
-                      >
-                        <div>
-                          <div className="font-bold text-white">{f.name}</div>
-                          <div className="text-[11px] text-gray-400">
-                            Serving: {f.servingGrams}g • {f.lastVerified}
-                          </div>
-                        </div>
-                        <div className="flex items-center gap-1.5 shrink-0">
-                          <input
-                            type="number"
-                            step="0.1"
-                            min="0.1"
-                            value={f.costTND}
-                            onChange={(e) =>
-                              setCustomPricesTND({
-                                ...customPricesTND,
-                                [f.id]: e.target.value
-                              })
-                            }
-                            className="w-16 px-2 py-1 rounded bg-[#0B0D0F] border border-[#B8F34A]/40 text-[#B8F34A] font-extrabold text-right"
-                          />
-                          <span className="text-[11px] text-gray-400">TND</span>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </div>
-
+            <h2 className="text-xl font-black">Tunisian Grocery & Meal Selector</h2>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {mealPlanSlots.map((slot, sIdx) => {
-                const foods = slot.foodIds
-                  .map((id) => foodsDb.find((f) => f.id === id))
-                  .filter(Boolean);
-                const mealTotals = foods.reduce(
-                  (acc, f) => {
-                    acc.cal += f.calories;
-                    acc.pro += f.protein;
-                    acc.carb += f.carbs;
-                    acc.fat += f.fat;
-                    acc.costTND += f.costTND;
-                    return acc;
-                  },
-                  { cal: 0, pro: 0, carb: 0, fat: 0, costTND: 0 }
-                );
-
-                return (
-                  <div
-                    key={slot.slot}
-                    className="bg-[#15191D] border border-white/10 rounded-2xl p-5 flex flex-col justify-between space-y-4"
-                  >
-                    <div>
-                      <div className="flex items-center justify-between">
-                        <span className="text-xs font-bold uppercase tracking-wider text-[#B8F34A]">
-                          {slot.slot}
-                        </span>
-                        <span className="text-xs text-gray-300 font-semibold">
-                          Est. {mealTotals.costTND.toFixed(2)} TND
-                        </span>
-                      </div>
-                      <h3 className="text-lg font-bold mt-1">{slot.title}</h3>
-                      <p className="text-xs text-gray-400 mt-1">
-                        {slot.instructions}
-                      </p>
-
-                      <div className="mt-4 space-y-2">
-                        {foods.map((f, fIdx) => (
-                          <div
-                            key={`${f.id}_${fIdx}`}
-                            className="flex items-center justify-between p-2.5 rounded-xl bg-[#0B0D0F] border border-white/10 text-xs"
-                          >
-                            <div>
-                              <div className="font-bold text-white">
-                                {f.name} ({f.servingGrams}g)
-                              </div>
-                              <div className="text-[11px] text-gray-400">
-                                {f.basis} • {f.calories} kcal • {f.protein}g P •{" "}
-                                <span className="text-[#B8F34A]">
-                                  {Number(f.costTND).toFixed(2)} TND
-                                </span>
-                              </div>
-                            </div>
-                            <button
-                              onClick={() =>
-                                handleSubstituteFood(sIdx, fIdx, f.id)
-                              }
-                              className="px-2.5 py-1.5 rounded-lg bg-white/5 hover:bg-[#B8F34A] hover:text-black text-gray-300 font-semibold flex items-center gap-1 transition shrink-0"
-                            >
-                              <RefreshCw className="w-3 h-3" /> Swap
-                            </button>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-
-                    <div className="pt-3 border-t border-white/10 flex items-center justify-between text-xs">
-                      <span className="font-bold text-white">
-                        Meal Total: {Math.round(mealTotals.cal)} kcal
-                      </span>
-                      <span className="text-gray-300">
-                        P: {Math.round(mealTotals.pro)}g • C:{" "}
-                        {Math.round(mealTotals.carb)}g • F:{" "}
-                        {Math.round(mealTotals.fat)}g
-                      </span>
+              {INITIAL_FOODS_DB.map(food => (
+                <div key={food.id} className="bg-[#15191D] border border-white/10 rounded-2xl p-5 flex justify-between items-center">
+                  <div>
+                    <h3 className="font-bold text-sm">{food.name}</h3>
+                    <div className="text-xs text-gray-400 mt-1">
+                      {food.protein}g protein • {food.calories} kcal ({food.servingGrams}g)
                     </div>
                   </div>
-                );
-              })}
-            </div>
-
-            <div className="bg-[#15191D] border border-white/10 rounded-2xl p-6 space-y-4">
-              <h2 className="text-lg font-bold">Daily Food Log</h2>
-              <div className="flex flex-wrap gap-3">
-                <select
-                  value={selectedLogMeal}
-                  onChange={(e) => setSelectedLogMeal(e.target.value)}
-                  className="px-3 py-2 rounded-xl bg-[#0B0D0F] border border-white/15 text-xs text-white"
-                >
-                  <option>Breakfast</option>
-                  <option>Lunch</option>
-                  <option>Dinner</option>
-                  <option>Snack</option>
-                </select>
-
-                <select
-                  value={selectedFoodToAdd}
-                  onChange={(e) => setSelectedFoodToAdd(e.target.value)}
-                  className="px-3 py-2 rounded-xl bg-[#0B0D0F] border border-white/15 text-xs text-white flex-1"
-                >
-                  {foodsDb.map((f) => (
-                    <option key={f.id} value={f.id}>
-                      {f.name} ({f.servingGrams}g — {f.calories} kcal,{" "}
-                      {f.protein}g P)
-                    </option>
-                  ))}
-                </select>
-
-                <input
-                  type="number"
-                  step="0.5"
-                  min="0.5"
-                  value={servingMultiplier}
-                  onChange={(e) => setServingMultiplier(e.target.value)}
-                  className="w-24 px-3 py-2 rounded-xl bg-[#0B0D0F] border border-white/15 text-xs text-white"
-                />
-
-                <button
-                  onClick={() =>
-                    setDailyLog([
-                      ...dailyLog,
-                      {
-                        id: `log_${Date.now()}`,
-                        meal: selectedLogMeal,
-                        foodId: selectedFoodToAdd,
-                        multiplier: Number(servingMultiplier) || 1
-                      }
-                    ])
-                  }
-                  className="px-4 py-2 rounded-xl bg-[#B8F34A] text-black font-bold text-xs"
-                >
-                  + Log Food
-                </button>
-              </div>
-
-              <div className="space-y-2">
-                {dailyLog.map((entry) => {
-                  const food = foodsDb.find((f) => f.id === entry.foodId);
-                  if (!food) return null;
-                  return (
-                    <div
-                      key={entry.id}
-                      className="flex items-center justify-between p-3 rounded-xl bg-[#0B0D0F] border border-white/10 text-xs"
-                    >
-                      <div>
-                        <span className="text-[#B8F34A] font-bold mr-2">
-                          [{entry.meal}]
-                        </span>
-                        <span className="font-semibold text-white">
-                          {food.name}
-                        </span>{" "}
-                        <span className="text-gray-400">
-                          × {entry.multiplier} (
-                          {Math.round(food.servingGrams * entry.multiplier)}g)
-                        </span>
-                      </div>
-                      <div className="flex items-center gap-3">
-                        <span>
-                          {Math.round(food.calories * entry.multiplier)} kcal •{" "}
-                          {Math.round(food.protein * entry.multiplier)}g P
-                        </span>
-                        <button
-                          onClick={() =>
-                            setDailyLog(
-                              dailyLog.filter((item) => item.id !== entry.id)
-                            )
-                          }
-                          className="text-gray-400 hover:text-red-400"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
+                  <div className="text-right">
+                    <span className="text-sm font-black text-[#B8F34A]">{food.costTND} TND</span>
+                  </div>
+                </div>
+              ))}
             </div>
           </div>
         )}
 
-        {activeTab === "grocery" && (
+        {activeTab === "premium" && (
           <div className="space-y-6">
-            <div className="bg-[#15191D] border border-white/10 rounded-2xl p-6">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                <div>
-                  <h1 className="text-2xl font-black">
-                    Aggregated 7-Day Grocery List
-                  </h1>
-                  <p className="text-xs text-gray-400 mt-1">
-                    Automatically deduplicates and sums weekly gram quantities
-                    and live TND costs from your active meal plan.
-                  </p>
+            <div className="bg-[#15191D] border border-[#B8F34A]/40 rounded-2xl p-8 relative overflow-hidden">
+              <div className="absolute top-0 right-0 w-64 h-64 bg-[#B8F34A]/10 rounded-full blur-3xl pointer-events-none" />
+              <div className="max-w-xl space-y-4 relative z-10">
+                <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-[#B8F34A]/20 text-[#B8F34A] text-xs font-bold">
+                  <Crown className="w-3.5 h-3.5 fill-current" /> PRO Exclusive Suite
                 </div>
-                <div className="flex gap-2">
-                  <button
-                    onClick={() => {
-                      setRemovedGroceries({});
-                      setCheckedGroceries({});
-                      setCustomGroceryMultipliers({});
-                    }}
-                    className="px-3.5 py-2 rounded-xl bg-white/5 hover:bg-white/10 text-xs font-semibold"
-                  >
-                    Regenerate List
-                  </button>
-                  <button
-                    onClick={() => {
-                      setActiveTab("meals");
-                      setShowPriceEditor(true);
-                    }}
-                    className="px-3.5 py-2 rounded-xl bg-[#B8F34A] text-black text-xs font-bold transition"
-                  >
-                    Edit Unit Prices (TND)
-                  </button>
-                </div>
-              </div>
+                <h1 className="text-3xl font-black">AI Coach, TND Budget Optimizer & Muscle Volume Heatmaps</h1>
+                <p className="text-sm text-gray-300 leading-relaxed">
+                  {isPremium
+                    ? "Your PRO subscription is active! You have full access to automated volume adjustments and local Tunisian budget solvers."
+                    : "Unlock this section by upgrading your account to FitForge PRO for 20 TND per month."}
+                </p>
 
-              <div className="mt-5 space-y-2.5">
-                {aggregatedGroceries.map(
-                  ({ food, weeklyGrams, weeklyCostTND }) => {
-                    const checked = !!checkedGroceries[food.id];
-                    return (
-                      <div
-                        key={food.id}
-                        className={`p-3.5 rounded-xl border flex flex-col sm:flex-row sm:items-center justify-between gap-3 transition ${
-                          checked
-                            ? "bg-[#0B0D0F]/50 border-white/5 opacity-60 line-through"
-                            : "bg-[#0B0D0F] border-white/10 hover:border-[#B8F34A]/40"
-                        }`}
-                      >
-                        <div className="flex items-center gap-3">
-                          <input
-                            type="checkbox"
-                            checked={checked}
-                            onChange={() =>
-                              setCheckedGroceries({
-                                ...checkedGroceries,
-                                [food.id]: !checked
-                              })
-                            }
-                            className="w-4 h-4 accent-[#B8F34A] cursor-pointer"
-                          />
-                          <div>
-                            <div className="text-sm font-bold text-white">
-                              {food.name}
-                            </div>
-                            <div className="text-xs text-gray-400">
-                              {food.category} • {food.basis} •{" "}
-                              {food.lastVerified}
-                            </div>
-                          </div>
-                        </div>
-                        <div className="flex items-center gap-3 text-xs">
-                          <div className="text-right">
-                            <div className="font-bold text-[#B8F34A]">
-                              {(weeklyGrams / 1000).toFixed(2)} kg (
-                              {weeklyGrams}g)
-                            </div>
-                            <div className="text-gray-300 font-semibold">
-                              ~{weeklyCostTND.toFixed(2)} TND / wk
-                            </div>
-                          </div>
-                          <button
-                            onClick={() =>
-                              setCustomGroceryMultipliers({
-                                ...customGroceryMultipliers,
-                                [food.id]:
-                                  (customGroceryMultipliers[food.id] || 1) +
-                                  0.25
-                              })
-                            }
-                            className="px-2 py-1 rounded bg-white/10 hover:bg-white/20 text-white font-bold"
-                          >
-                            +25%
-                          </button>
-                          <button
-                            onClick={() =>
-                              setRemovedGroceries({
-                                ...removedGroceries,
-                                [food.id]: true
-                              })
-                            }
-                            className="px-2 py-1 rounded bg-white/5 hover:bg-red-500/20 text-gray-400 hover:text-red-300"
-                          >
-                            ✕
-                          </button>
-                        </div>
-                      </div>
-                    );
-                  }
+                {!isPremium && (
+                  <button
+                    onClick={handleUpgradeToPro}
+                    className="px-6 py-3.5 rounded-xl bg-[#B8F34A] text-black font-extrabold text-sm hover:brightness-110 transition shadow-lg"
+                  >
+                    Activate PRO Subscription — 20 TND / month
+                  </button>
                 )}
               </div>
-            </div>
-          </div>
-        )}
-
-        {activeTab === "progress" && (
-          <div className="space-y-6">
-            <div className="bg-[#15191D] border border-white/10 rounded-2xl p-6 space-y-5">
-              <div>
-                <h1 className="text-2xl font-black">
-                  Body Weight, Waist Measurements & PR Tracker
-                </h1>
-                <p className="text-xs text-gray-400 mt-1">
-                  Tracks weekly weight averages and waist measurements without
-                  fabricating body-fat percentages from scale weight alone.
-                </p>
-              </div>
-
-              <div className="flex flex-wrap gap-3">
-                <input
-                  type="number"
-                  step="0.1"
-                  placeholder="Enter weight (kg)..."
-                  value={newWeightInput}
-                  onChange={(e) => setNewWeightInput(e.target.value)}
-                  className="px-3.5 py-2 rounded-xl bg-[#0B0D0F] border border-white/15 text-xs text-white"
-                />
-                <input
-                  type="number"
-                  step="0.1"
-                  placeholder="Optional Waist (cm)..."
-                  value={newWaistInput}
-                  onChange={(e) => setNewWaistInput(e.target.value)}
-                  className="px-3.5 py-2 rounded-xl bg-[#0B0D0F] border border-white/15 text-xs text-white"
-                />
-                <button
-                  onClick={() => {
-                    const val = parseFloat(newWeightInput);
-                    if (!val || val < 30) return;
-                    const waist = parseFloat(newWaistInput) || 81.0;
-                    setWeightHistory([
-                      ...weightHistory,
-                      { date: "2026-10-26", weight: val, waistCm: waist }
-                    ]);
-                    setProfile({ ...profile, weightKg: val });
-                    setNewWeightInput("");
-                    setNewWaistInput("");
-                  }}
-                  className="px-4 py-2 rounded-xl bg-[#B8F34A] text-black font-bold text-xs"
-                >
-                  + Log Entry
-                </button>
-              </div>
-
-              <div className="p-4 rounded-xl bg-[#0B0D0F] border border-white/10">
-                <div className="flex items-center justify-between text-xs text-gray-400 mb-3">
-                  <span>Body Weight Trajectory (kg)</span>
-                  <span className="text-[#B8F34A] font-bold">
-                    Weekly Average:{" "}
-                    {(
-                      weightHistory.reduce((s, e) => s + e.weight, 0) /
-                      weightHistory.length
-                    ).toFixed(1)}{" "}
-                    kg
-                  </span>
-                </div>
-                <svg viewBox="0 0 500 130" className="w-full h-36">
-                  <line
-                    x1="20"
-                    y1="110"
-                    x2="480"
-                    y2="110"
-                    stroke="#262C34"
-                    strokeWidth="1"
-                  />
-                  <line
-                    x1="20"
-                    y1="65"
-                    x2="480"
-                    y2="65"
-                    stroke="#262C34"
-                    strokeWidth="1"
-                    strokeDasharray="4"
-                  />
-                  <line
-                    x1="20"
-                    y1="20"
-                    x2="480"
-                    y2="20"
-                    stroke="#262C34"
-                    strokeWidth="1"
-                    strokeDasharray="4"
-                  />
-                  {weightHistory.map((pt, idx) => {
-                    const x =
-                      40 +
-                      (idx * 420) / Math.max(1, weightHistory.length - 1);
-                    const minW =
-                      Math.min(...weightHistory.map((w) => w.weight)) - 1;
-                    const maxW =
-                      Math.max(...weightHistory.map((w) => w.weight)) + 1;
-                    const y =
-                      100 -
-                      ((pt.weight - minW) / Math.max(1, maxW - minW)) * 75;
-                    return (
-                      <g key={idx}>
-                        <circle cx={x} cy={y} r="5" fill="#B8F34A" />
-                        <text
-                          x={x}
-                          y={y - 10}
-                          textAnchor="middle"
-                          fill="#FFFFFF"
-                          fontSize="10"
-                          fontWeight="bold"
-                        >
-                          {pt.weight}kg
-                        </text>
-                        <text
-                          x={x}
-                          y="124"
-                          textAnchor="middle"
-                          fill="#94a3b8"
-                          fontSize="9"
-                        >
-                          {pt.date.slice(5)}
-                        </text>
-                      </g>
-                    );
-                  })}
-                </svg>
-              </div>
-
-              <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
-                {weightHistory.map((entry, idx) => (
-                  <div
-                    key={idx}
-                    className="p-3.5 rounded-xl bg-[#0B0D0F] border border-white/10"
-                  >
-                    <div className="text-xs text-gray-400">{entry.date}</div>
-                    <div className="text-lg font-black text-[#B8F34A] mt-1">
-                      {entry.weight} kg
-                    </div>
-                    <div className="text-[11px] text-gray-400">
-                      Waist: {entry.waistCm || 81.0} cm
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-        )}
-
-        {activeTab === "profile" && (
-          <div className="bg-[#15191D] border border-white/10 rounded-2xl p-6 space-y-6">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-white/10 pb-4">
-              <div>
-                <span className="text-xs font-extrabold uppercase text-[#B8F34A]">
-                  Guided Onboarding & Profile Configuration (Step{" "}
-                  {onboardingStep} of 4)
-                </span>
-                <h1 className="text-2xl font-black mt-1">
-                  Fitness Profile & Equipment Preferences
-                </h1>
-              </div>
-              <div className="flex gap-1.5">
-                {[1, 2, 3, 4].map((step) => (
-                  <button
-                    key={step}
-                    onClick={() => setOnboardingStep(step)}
-                    className={`px-3 py-1.5 rounded-lg text-xs font-extrabold ${
-                      onboardingStep === step
-                        ? "bg-[#B8F34A] text-black"
-                        : "bg-[#0B0D0F] text-gray-400"
-                    }`}
-                  >
-                    Step {step}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            {onboardingStep === 1 && (
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs">
-                <div>
-                  <label className="block text-gray-400 mb-1">
-                    Display Name
-                  </label>
-                  <input
-                    type="text"
-                    value={profile.name}
-                    onChange={(e) =>
-                      setProfile({ ...profile, name: e.target.value })
-                    }
-                    className="w-full px-3 py-2 rounded-xl bg-[#0B0D0F] border border-white/15 text-white font-bold"
-                  />
-                </div>
-                <div>
-                  <label className="block text-gray-400 mb-1">
-                    Age (Years)
-                  </label>
-                  <input
-                    type="number"
-                    value={profile.age}
-                    onChange={(e) =>
-                      setProfile({ ...profile, age: Number(e.target.value) })
-                    }
-                    className="w-full px-3 py-2 rounded-xl bg-[#0B0D0F] border border-white/15 text-white font-bold"
-                  />
-                </div>
-                <div>
-                  <label className="block text-gray-400 mb-1">
-                    Height (cm)
-                  </label>
-                  <input
-                    type="number"
-                    value={profile.heightCm}
-                    onChange={(e) =>
-                      setProfile({
-                        ...profile,
-                        heightCm: Number(e.target.value)
-                      })
-                    }
-                    className="w-full px-3 py-2 rounded-xl bg-[#0B0D0F] border border-white/15 text-white font-bold"
-                  />
-                </div>
-                <div>
-                  <label className="block text-gray-400 mb-1">
-                    Current Weight (kg)
-                  </label>
-                  <input
-                    type="number"
-                    value={profile.weightKg}
-                    onChange={(e) =>
-                      setProfile({
-                        ...profile,
-                        weightKg: Number(e.target.value)
-                      })
-                    }
-                    className="w-full px-3 py-2 rounded-xl bg-[#0B0D0F] border border-white/15 text-white font-bold"
-                  />
-                </div>
-                <div>
-                  <label className="block text-gray-400 mb-1">
-                    Target Weight (kg)
-                  </label>
-                  <input
-                    type="number"
-                    value={profile.targetWeightKg}
-                    onChange={(e) =>
-                      setProfile({
-                        ...profile,
-                        targetWeightKg: Number(e.target.value)
-                      })
-                    }
-                    className="w-full px-3 py-2 rounded-xl bg-[#0B0D0F] border border-white/15 text-white font-bold"
-                  />
-                </div>
-                <div>
-                  <label className="block text-gray-400 mb-1">
-                    Primary Goal
-                  </label>
-                  <select
-                    value={profile.goal}
-                    onChange={(e) =>
-                      setProfile({ ...profile, goal: e.target.value })
-                    }
-                    className="w-full px-3 py-2 rounded-xl bg-[#0B0D0F] border border-white/15 text-white font-bold"
-                  >
-                    <option value="muscle_gain">Muscle Gain</option>
-                    <option value="fat_loss">Fat Loss</option>
-                    <option value="recomp">Body Recomposition</option>
-                    <option value="strength">Strength</option>
-                    <option value="general_fitness">General Fitness</option>
-                  </select>
-                </div>
-              </div>
-            )}
-
-            {onboardingStep === 2 && (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
-                <div>
-                  <label className="block text-gray-400 mb-1">
-                    Experience Level
-                  </label>
-                  <select
-                    value={profile.experience}
-                    onChange={(e) =>
-                      setProfile({ ...profile, experience: e.target.value })
-                    }
-                    className="w-full px-3 py-2 rounded-xl bg-[#0B0D0F] border border-white/15 text-white font-bold"
-                  >
-                    <option value="beginner">Beginner (Full Body Focus)</option>
-                    <option value="intermediate">
-                      Intermediate (Upper/Lower Split)
-                    </option>
-                    <option value="advanced">
-                      Advanced / Hardcore (Periodized Volume)
-                    </option>
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-gray-400 mb-1">
-                    Training Days Per Week (2–6)
-                  </label>
-                  <input
-                    type="number"
-                    min={2}
-                    max={6}
-                    value={profile.daysPerWeek}
-                    onChange={(e) =>
-                      setProfile({
-                        ...profile,
-                        daysPerWeek: Math.min(
-                          6,
-                          Math.max(2, Number(e.target.value))
-                        )
-                      })
-                    }
-                    className="w-full px-3 py-2 rounded-xl bg-[#0B0D0F] border border-white/15 text-white font-bold"
-                  />
-                </div>
-                <div>
-                  <label className="block text-gray-400 mb-1">
-                    Available Equipment
-                  </label>
-                  <select
-                    value={profile.equipment}
-                    onChange={(e) =>
-                      setProfile({ ...profile, equipment: e.target.value })
-                    }
-                    className="w-full px-3 py-2 rounded-xl bg-[#0B0D0F] border border-white/15 text-white font-bold"
-                  >
-                    <option value="Full Gym">Full Commercial Gym</option>
-                    <option value="Dumbbells">Dumbbells Only</option>
-                    <option value="Bodyweight">Bodyweight Only</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-gray-400 mb-1">
-                    Optional Joint Comfort Flags (Auto-Substitutes Lifts)
-                  </label>
-                  <div className="flex flex-wrap gap-2 pt-1">
-                    {["shoulder", "knee", "lower_back"].map((joint) => {
-                      const active = (profile.jointLimitations || []).includes(
-                        joint
-                      );
-                      return (
-                        <button
-                          key={joint}
-                          onClick={() => {
-                            const list = profile.jointLimitations || [];
-                            setProfile({
-                              ...profile,
-                              jointLimitations: active
-                                ? list.filter((j) => j !== joint)
-                                : [...list, joint]
-                            });
-                          }}
-                          className={`px-3 py-1.5 rounded-lg font-bold capitalize ${
-                            active
-                              ? "bg-[#B8F34A] text-black"
-                              : "bg-[#0B0D0F] border border-white/15 text-gray-300"
-                          }`}
-                        >
-                          {joint.replace("_", " ")}
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {onboardingStep === 3 && (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
-                <div>
-                  <label className="block text-gray-400 mb-1">
-                    Dietary Preference
-                  </label>
-                  <select
-                    value={profile.dietaryPreference}
-                    onChange={(e) =>
-                      setProfile({
-                        ...profile,
-                        dietaryPreference: e.target.value
-                      })
-                    }
-                    className="w-full px-3 py-2 rounded-xl bg-[#0B0D0F] border border-white/15 text-white font-bold"
-                  >
-                    <option value="omnivore">Omnivore (All Foods)</option>
-                    <option value="vegetarian">Vegetarian</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-gray-400 mb-1">
-                    Strict Allergen Exclusions (Never Suggested in Swaps)
-                  </label>
-                  <div className="flex flex-wrap gap-2 pt-1">
-                    {["fish", "eggs", "dairy", "gluten", "nuts"].map(
-                      (allergen) => {
-                        const active = (profile.allergies || []).includes(
-                          allergen
-                        );
-                        return (
-                          <button
-                            key={allergen}
-                            onClick={() => {
-                              const list = profile.allergies || [];
-                              setProfile({
-                                ...profile,
-                                allergies: active
-                                  ? list.filter((a) => a !== allergen)
-                                  : [...list, allergen]
-                              });
-                            }}
-                            className={`px-3 py-1.5 rounded-lg font-bold capitalize ${
-                              active
-                                ? "bg-red-500 text-white"
-                                : "bg-[#0B0D0F] border border-white/15 text-gray-300"
-                            }`}
-                          >
-                            No {allergen}
-                          </button>
-                        );
-                      }
-                    )}
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {onboardingStep === 4 && (
-              <div className="p-4 rounded-xl bg-[#0B0D0F] border border-white/10 space-y-3 text-xs">
-                <h3 className="font-extrabold text-[#B8F34A]">
-                  Data Export & Reset Controls
-                </h3>
-                <p className="text-gray-400">
-                  Export your complete profile and custom market prices as JSON
-                  or reset browser storage to defaults.
-                </p>
-                <div className="flex flex-wrap gap-3">
-                  <button
-                    onClick={() => {
-                      const blob = new Blob(
-                        [JSON.stringify({ profile, customPricesTND }, null, 2)],
-                        { type: "application/json" }
-                      );
-                      const url = URL.createObjectURL(blob);
-                      const a = document.createElement("a");
-                      a.href = url;
-                      a.download = "fitforge-export.json";
-                      a.click();
-                    }}
-                    className="px-4 py-2 rounded-xl bg-white/10 hover:bg-white/20 text-white font-bold flex items-center gap-1.5"
-                  >
-                    <Download className="w-3.5 h-3.5" /> Export JSON
-                  </button>
-                  <button
-                    onClick={() => {
-                      localStorage.removeItem("fitforge_master_profile_v5");
-                      localStorage.removeItem("fitforge_custom_prices_tnd_v2");
-                      setProfile(DEFAULT_PROFILE);
-                      setCustomPricesTND({});
-                    }}
-                    className="px-4 py-2 rounded-xl bg-red-500/20 text-red-300 font-bold"
-                  >
-                    Reset All Local Data
-                  </button>
-                </div>
-              </div>
-            )}
-
-            <div className="flex justify-between pt-4 border-t border-white/10">
-              <button
-                onClick={() =>
-                  setOnboardingStep(Math.max(1, onboardingStep - 1))
-                }
-                className="px-4 py-2 rounded-xl bg-white/5 text-xs font-bold text-gray-300"
-              >
-                ← Previous
-              </button>
-              <button
-                onClick={() => {
-                  if (onboardingStep < 4) setOnboardingStep(onboardingStep + 1);
-                  else setActiveTab("dashboard");
-                }}
-                className="px-5 py-2 rounded-xl bg-[#B8F34A] text-black text-xs font-extrabold"
-              >
-                {onboardingStep < 4 ? "Next Step →" : "Save & View Dashboard →"}
-              </button>
-            </div>
-          </div>
-        )}
-
-        {activeTab === "tests" && (
-          <div className="space-y-6">
-            <div className="bg-[#15191D] border border-white/10 rounded-2xl p-6 space-y-4">
-              <h1 className="text-xl font-black flex items-center gap-2">
-                <ShieldCheck className="w-5 h-5 text-[#B8F34A]" /> In-App
-                Verification Suite & Complete 15-Table Supabase RLS Schema
-              </h1>
-              <div className="p-4 rounded-xl bg-[#0B0D0F] border border-[#B8F34A]/30 text-xs space-y-1.5">
-                <div className="text-[#B8F34A] font-bold">
-                  ✓ PASS: Mifflin–St Jeor BMR (78.5kg, 178cm, 28yo Male ={" "}
-                  {calculateBMR(78.5, 178, 28, "male")} kcal)
-                </div>
-                <div className="text-[#B8F34A] font-bold">
-                  ✓ PASS: Macro Calorie Reconciliation (4P + 4C + 9F ==={" "}
-                  {nutritionTargets.dailyCalories} kcal)
-                </div>
-                <div className="text-[#B8F34A] font-bold">
-                  ✓ PASS: 60fps Articulated GIF-Style Pose Interpolation &
-                  YouTube Error 153 Sandbox Protection Active
-                </div>
-              </div>
-
-              <pre className="p-4 rounded-xl bg-[#0B0D0F] border border-white/10 text-[11px] text-gray-300 overflow-x-auto leading-relaxed">
-{`-- FITFORGE COMPLETE 15-TABLE SUPABASE POSTGRESQL SCHEMA WITH ROW LEVEL SECURITY (RLS)
-create table public.profiles (id uuid primary key references auth.users(id) on delete cascade, weight_kg numeric, height_cm numeric, age int, sex text, goal text, experience text, equipment text, updated_at timestamptz default now());
-create table public.user_preferences (user_id uuid primary key references auth.users(id) on delete cascade, dietary_preference text, allergies text[], daily_budget numeric, currency text);
-create table public.exercises (id text primary key, name text not null, muscle_group text not null, equipment text not null, motion_type text, youtube_embed_id text, cues text[]);
-create table public.foods (id text primary key, name text not null, basis text not null, serving_grams numeric not null, calories numeric not null, protein numeric not null, carbs numeric not null, fat numeric not null, cost_tnd numeric, source text);
-create table public.workout_programs (id uuid primary key default gen_random_uuid(), user_id uuid references auth.users(id) on delete cascade, name text not null, days_per_week int not null);
-create table public.workout_sessions (id uuid primary key default gen_random_uuid(), user_id uuid references auth.users(id) on delete cascade, program_id uuid references public.workout_programs(id), session_date date not null);
-create table public.workout_exercises (id uuid primary key default gen_random_uuid(), user_id uuid references auth.users(id) on delete cascade, session_id uuid references public.workout_sessions(id) on delete cascade, exercise_id text references public.exercises(id));
-create table public.workout_sets (id uuid primary key default gen_random_uuid(), user_id uuid references auth.users(id) on delete cascade, workout_exercise_id uuid references public.workout_exercises(id) on delete cascade, weight_kg numeric, reps int, is_warmup boolean default false);
-create table public.meal_plans (id uuid primary key default gen_random_uuid(), user_id uuid references auth.users(id) on delete cascade, daily_calories int not null);
-create table public.meals (id uuid primary key default gen_random_uuid(), user_id uuid references auth.users(id) on delete cascade, meal_plan_id uuid references public.meal_plans(id) on delete cascade, slot text not null, title text not null);
-create table public.meal_ingredients (id uuid primary key default gen_random_uuid(), user_id uuid references auth.users(id) on delete cascade, meal_id uuid references public.meals(id) on delete cascade, food_id text references public.foods(id), grams numeric not null);
-create table public.food_logs (id uuid primary key default gen_random_uuid(), user_id uuid references auth.users(id) on delete cascade, log_date date not null);
-create table public.food_log_items (id uuid primary key default gen_random_uuid(), user_id uuid references auth.users(id) on delete cascade, food_log_id uuid references public.food_logs(id) on delete cascade, food_id text references public.foods(id), multiplier numeric not null);
-create table public.weight_entries (id uuid primary key default gen_random_uuid(), user_id uuid references auth.users(id) on delete cascade, entry_date date not null, weight_kg numeric not null);
-create table public.body_measurements (id uuid primary key default gen_random_uuid(), user_id uuid references auth.users(id) on delete cascade, entry_date date not null, waist_cm numeric, chest_cm numeric, arm_cm numeric);
-
-alter table public.profiles enable row level security;
-create policy "Users manage own profile" on public.profiles for all using (auth.uid() = id) with check (auth.uid() = id);`}
-              </pre>
             </div>
           </div>
         )}
