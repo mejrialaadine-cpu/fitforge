@@ -538,7 +538,7 @@ function ExerciseVideoModal({ exercise, onClose }) {
 // ============================================================================
 
 const DEFAULT_PROFILE = {
-  name: "Aladin",
+  name: "Athlete",
   age: 28,
   sex: "male",
   heightCm: 178,
@@ -555,6 +555,15 @@ const DEFAULT_PROFILE = {
   unitSystem: "metric",
   manualCalorieOverride: ""
 };
+
+function readLocalState(key, fallback) {
+  try {
+    const value = window.localStorage.getItem(`fitforge:${key}`);
+    return value ? { ...fallback, ...JSON.parse(value) } : fallback;
+  } catch {
+    return fallback;
+  }
+}
 
 export default function App() {
   const [activeTab, setActiveTab] = useState("dashboard");
@@ -627,26 +636,16 @@ export default function App() {
   };
 
   const handleUpgradeToPro = async () => {
-    if (!supabase || !user) {
-      setIsPremium(true);
-      alert("FitForge PRO active in local test mode (20 TND/mo)");
-      return;
-    }
-
-    const { error } = await supabase
-      .from("profiles")
-      .update({ is_premium: true, subscription_plan: "pro_20dt", subscription_status: "active" })
-      .eq("id", user.id);
-
-    if (error) alert("Error activating subscription: " + error.message);
-    else {
-      setIsPremium(true);
-      alert("Success! FitForge PRO is now active for 20 TND/month.");
-    }
+    // A paid tier must only be enabled after a trusted payment-provider webhook
+    // verifies the transaction. Never grant premium access from the client.
+    alert(
+      "FitForge PRO checkout is not connected yet. Your account has not been charged or upgraded. " +
+      "Connect a payment provider and verify successful payments on the server before enabling PRO."
+    );
   };
 
-  const [profile, setProfile] = useState(DEFAULT_PROFILE);
-  const [customPricesTND, setCustomPricesTND] = useState({});
+  const [profile, setProfile] = useState(() => readLocalState("profile", DEFAULT_PROFILE));
+  const [customPricesTND, setCustomPricesTND] = useState(() => readLocalState("prices", {}));
   const [activeVideoExercise, setActiveVideoExercise] = useState(null);
   const [showPriceEditor, setShowPriceEditor] = useState(false);
 
@@ -663,17 +662,37 @@ export default function App() {
 
   const nutritionTargets = useMemo(() => calculateNutritionTargets(profile), [profile]);
 
-  const [mealPlanSlots, setMealPlanSlots] = useState([
+  const defaultMealPlan = [
     { slot: "Breakfast", title: "High-Protein Tunisian Egg & Oat Bowl", foodIds: ["food_eggs", "food_oats", "food_almonds"], instructions: "Scramble 3 whole eggs; serve alongside warm oats and raw almonds." },
     { slot: "Lunch", title: "Escalope Grillée & Steamed Couscous", foodIds: ["food_chicken_breast", "food_couscous", "food_olive_oil"], instructions: "Pan-sear chicken breast with spices; serve over couscous with olive oil." },
     { slot: "Dinner", title: "Mediterranean Grilled Sardines", foodIds: ["food_sardines", "food_potatoes"], instructions: "Grill sardines with lemon and cumin; pair with baked potato wedges." },
     { slot: "Snack", title: "Post-Workout Greek Yogurt", foodIds: ["food_yogurt", "food_chickpeas"], instructions: "High-protein snack combining strained yogurt and chickpeas." }
-  ]);
+  ];
+  const [mealPlanSlots, setMealPlanSlots] = useState(() => {
+    try { return JSON.parse(window.localStorage.getItem("fitforge:mealPlan") || "null") || defaultMealPlan; }
+    catch { return defaultMealPlan; }
+  });
 
-  const [dailyLog, setDailyLog] = useState([
-    { id: "log_1", meal: "Breakfast", foodId: "food_eggs", multiplier: 1 },
-    { id: "log_2", meal: "Lunch", foodId: "food_chicken_breast", multiplier: 1.2 }
-  ]);
+  const [dailyLog, setDailyLog] = useState(() => {
+    try { return JSON.parse(window.localStorage.getItem("fitforge:dailyLog") || "null") || [
+      { id: "log_1", meal: "Breakfast", foodId: "food_eggs", multiplier: 1 },
+      { id: "log_2", meal: "Lunch", foodId: "food_chicken_breast", multiplier: 1.2 }
+    ]; } catch { return []; }
+  });
+  const [selectedFoodId, setSelectedFoodId] = useState(INITIAL_FOODS_DB[0]?.id || "");
+  const [selectedMeal, setSelectedMeal] = useState("Snack");
+  const [servingMultiplier, setServingMultiplier] = useState("1");
+
+  useEffect(() => {
+    try {
+      window.localStorage.setItem("fitforge:profile", JSON.stringify(profile));
+      window.localStorage.setItem("fitforge:prices", JSON.stringify(customPricesTND));
+      window.localStorage.setItem("fitforge:mealPlan", JSON.stringify(mealPlanSlots));
+      window.localStorage.setItem("fitforge:dailyLog", JSON.stringify(dailyLog));
+    } catch (error) {
+      console.warn("FitForge could not save local data.", error);
+    }
+  }, [profile, customPricesTND, mealPlanSlots, dailyLog]);
 
   const loggedTotals = useMemo(() => {
     return dailyLog.reduce((acc, entry) => {
@@ -747,12 +766,12 @@ export default function App() {
         <div className="p-4 m-3 rounded-2xl bg-gradient-to-br from-[#B8F34A]/20 via-[#15191D] to-[#0B0D0F] border border-[#B8F34A]/40 space-y-2.5">
           <div className="flex items-center gap-2 text-[#B8F34A] font-extrabold text-xs">
             <Crown className="w-4 h-4 fill-current" />
-            <span>FitForge PRO Member</span>
+            <span>{isPremium ? "FitForge PRO Member" : "Unlock FitForge PRO"}</span>
           </div>
-          <p className="text-[11px] text-gray-300 leading-relaxed">AI Coach, Cloud Sync & TND Market Optimizers.</p>
-          <div className="text-xs font-black text-white">20 TND <span className="text-[10px] font-normal text-gray-400">/ month</span></div>
+          <p className="text-[11px] text-gray-300 leading-relaxed">Planned coaching tools, progress insights and budget features.</p>
+          <div className="text-xs font-black text-white">20 TND <span className="text-[10px] font-normal text-gray-400">/ month · checkout not connected</span></div>
           <button onClick={handleUpgradeToPro} className={`w-full py-2 rounded-xl text-xs font-extrabold transition ${isPremium ? "bg-white/10 text-white border border-white/20" : "bg-[#B8F34A] text-black hover:brightness-110"}`}>
-            {isPremium ? "✓ PRO Active" : "Upgrade for 20 TND/mo"}
+            {isPremium ? "✓ PRO Active" : "PRO checkout unavailable"}
           </button>
         </div>
 
@@ -803,8 +822,35 @@ export default function App() {
         </div>
       </aside>
 
+      {/* MOBILE NAVIGATION — replaces the desktop-only sidebar on small screens */}
+      <nav aria-label="Primary navigation" className="md:hidden fixed bottom-0 inset-x-0 z-40 bg-[#111518]/95 backdrop-blur-xl border-t border-white/10 px-2 pt-2 pb-[max(0.5rem,env(safe-area-inset-bottom))]">
+        <div className="grid grid-cols-5 gap-1 max-w-xl mx-auto">
+          {[
+            { id: "dashboard", label: "Home", icon: TrendingUp },
+            { id: "workouts", label: "Train", icon: Dumbbell },
+            { id: "exercises", label: "Exercises", icon: Video },
+            { id: "nutrition", label: "Macros", icon: Flame },
+            { id: "meals", label: "Meals", icon: Utensils }
+          ].map(item => {
+            const Icon = item.icon;
+            const active = activeTab === item.id;
+            return <button key={item.id} onClick={() => setActiveTab(item.id)} aria-current={active ? "page" : undefined}
+              className={`flex flex-col items-center justify-center gap-1 rounded-xl py-2 text-[10px] font-bold transition ${active ? "text-[#B8F34A] bg-[#B8F34A]/10" : "text-gray-400 hover:text-white"}`}>
+              <Icon className="w-5 h-5" />{item.label}
+            </button>;
+          })}
+        </div>
+      </nav>
+
       {/* MAIN CONTENT AREA */}
-      <main className="flex-1 p-5 md:p-8 overflow-y-auto max-w-7xl mx-auto w-full space-y-6">
+      <main className="flex-1 p-5 pb-28 md:p-8 md:pb-8 overflow-y-auto max-w-7xl mx-auto w-full space-y-6">
+        <div className="flex items-center justify-between gap-3 md:hidden">
+          <div className="flex items-center gap-2.5">
+            <div className="w-9 h-9 rounded-xl bg-[#B8F34A] flex items-center justify-center text-black font-black">FF</div>
+            <div><span className="font-black tracking-tight block leading-none">FITFORGE</span><span className="text-[9px] font-bold text-[#B8F34A] tracking-wider">TRAINING OS</span></div>
+          </div>
+          {user ? <button onClick={handleLogout} className="p-2 rounded-xl border border-white/10 text-gray-300" aria-label="Sign out"><LogOut className="w-4 h-4" /></button> : <button onClick={() => { setAuthMode("login"); setShowAuthModal(true); }} className="px-3 py-2 rounded-xl bg-[#B8F34A] text-black font-bold text-xs">Sign in</button>}
+        </div>
         {activeTab === "dashboard" && (
           <div className="space-y-6">
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-[#15191D] border border-white/10 rounded-2xl p-6">
@@ -812,7 +858,7 @@ export default function App() {
                 <span className="text-xs uppercase tracking-wider text-[#B8F34A] font-bold">Connected Training & Nutrition Hub</span>
                 <h1 className="text-2xl md:text-3xl font-black mt-1">Welcome back, {profile.name}</h1>
                 <p className="text-sm text-gray-400 mt-1">
-                  Status: <strong className="text-[#B8F34A]">{isPremium ? "FitForge PRO (20 TND/mo)" : "Free Member"}</strong> • Cloud Sync: <strong className="text-white">{user ? "Active via Supabase" : "Local Browser Mode"}</strong>
+                  Status: <strong className="text-[#B8F34A]">{isPremium ? "FitForge PRO" : "Free Member"}</strong> • Data: <strong className="text-white">{user?.id ? "Signed in" : "Saved in this browser"}</strong>
                 </p>
               </div>
 
@@ -834,7 +880,7 @@ export default function App() {
               </div>
               <div className="bg-[#15191D] border border-white/10 rounded-2xl p-5">
                 <span className="text-xs text-gray-400">Cloud Status</span>
-                <div className="text-lg font-extrabold mt-2 text-[#B8F34A]">{user ? "Connected to Supabase" : "Offline / Guest"}</div>
+                <div className="text-lg font-extrabold mt-2 text-[#B8F34A]">{user?.id ? "Connected to Supabase" : "Saved locally"}</div>
               </div>
             </div>
 
@@ -901,7 +947,24 @@ export default function App() {
 
         {activeTab === "nutrition" && (
           <div className="space-y-6">
-            <h1 className="text-2xl font-black">Nutrition Calculator & Macros</h1>
+            <div>
+              <p className="text-xs uppercase tracking-[0.18em] text-[#B8F34A] font-bold">Your daily targets</p>
+              <h1 className="text-2xl md:text-3xl font-black mt-1">Nutrition Calculator & Macros</h1>
+              <p className="text-sm text-gray-400 mt-2 max-w-2xl">Adjust your profile to estimate calorie and macro targets. These are general estimates, not medical nutrition advice.</p>
+            </div>
+            <div className="bg-[#15191D] border border-white/10 rounded-2xl p-5 md:p-6">
+              <h2 className="font-bold mb-4">Your profile</h2>
+              <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
+                <label className="text-xs text-gray-400">Age <input type="number" min="15" max="100" value={profile.age} onChange={e => setProfile(p => ({ ...p, age: Number(e.target.value) }))} className="mt-1 w-full rounded-xl bg-[#090c0e] border border-white/10 px-3 py-2.5 text-white" /></label>
+                <label className="text-xs text-gray-400">Weight (kg) <input type="number" min="25" max="350" step="0.1" value={profile.weightKg} onChange={e => setProfile(p => ({ ...p, weightKg: Number(e.target.value) }))} className="mt-1 w-full rounded-xl bg-[#090c0e] border border-white/10 px-3 py-2.5 text-white" /></label>
+                <label className="text-xs text-gray-400">Height (cm) <input type="number" min="100" max="250" value={profile.heightCm} onChange={e => setProfile(p => ({ ...p, heightCm: Number(e.target.value) }))} className="mt-1 w-full rounded-xl bg-[#090c0e] border border-white/10 px-3 py-2.5 text-white" /></label>
+                <label className="text-xs text-gray-400">Sex used for estimate <select value={profile.sex} onChange={e => setProfile(p => ({ ...p, sex: e.target.value }))} className="mt-1 w-full rounded-xl bg-[#090c0e] border border-white/10 px-3 py-2.5 text-white"><option value="male">Male</option><option value="female">Female</option></select></label>
+                <label className="text-xs text-gray-400">Goal <select value={profile.goal} onChange={e => setProfile(p => ({ ...p, goal: e.target.value, manualCalorieOverride: "" }))} className="mt-1 w-full rounded-xl bg-[#090c0e] border border-white/10 px-3 py-2.5 text-white"><option value="fat_loss">Fat loss</option><option value="muscle_gain">Muscle gain</option><option value="recomp">Recomposition</option><option value="strength">Strength</option><option value="general_fitness">General fitness</option></select></label>
+              </div>
+              <label className="block text-xs text-gray-400 mt-4 max-w-xs">Activity level
+                <select value={profile.activityMultiplier} onChange={e => setProfile(p => ({ ...p, activityMultiplier: Number(e.target.value) }))} className="mt-1 w-full rounded-xl bg-[#090c0e] border border-white/10 px-3 py-2.5 text-white"><option value={1.2}>Mostly sedentary</option><option value={1.375}>Lightly active</option><option value={1.55}>Moderately active</option><option value={1.725}>Very active</option><option value={1.9}>Extremely active</option></select>
+              </label>
+            </div>
             <div className="bg-[#15191D] border border-white/10 rounded-2xl p-6 grid grid-cols-2 md:grid-cols-4 gap-4 text-center">
               <div className="p-4 bg-[#0B0D0F] rounded-xl border border-white/5">
                 <div className="text-xs text-gray-400">Calories</div>
@@ -928,7 +991,7 @@ export default function App() {
             <div className="flex items-center justify-between bg-[#15191D] border border-white/10 rounded-2xl p-6">
               <div>
                 <h1 className="text-2xl font-black">Tunisian Grocery & Meal Planner</h1>
-                <p className="text-xs text-gray-400 mt-1">USD & TND market prices synced.</p>
+                <p className="text-xs text-gray-400 mt-1">Editable reference prices in Tunisian dinars. Prices are not live market data.</p>
               </div>
               <button onClick={() => setShowPriceEditor(!showPriceEditor)} className="px-4 py-2.5 rounded-xl bg-[#B8F34A] text-black font-extrabold text-xs flex items-center gap-2">
                 <Edit3 className="w-4 h-4" /> {showPriceEditor ? "Close Price Book" : "Update Prices (TND)"}
@@ -937,7 +1000,7 @@ export default function App() {
 
             {showPriceEditor && (
               <div className="p-4 rounded-xl bg-[#15191D] border border-[#B8F34A]/40 space-y-3">
-                <h3 className="text-sm font-extrabold text-[#B8F34A]">Live Tunisian Market Price Book</h3>
+                <h3 className="text-sm font-extrabold text-[#B8F34A]">Edit food reference prices (TND)</h3>
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
                   {foodsDb.map(f => (
                     <div key={f.id} className="p-3 rounded-xl bg-[#0B0D0F] border border-white/10 flex items-center justify-between gap-2 text-xs">
@@ -964,6 +1027,31 @@ export default function App() {
                 </div>
               ))}
             </div>
+
+            <section className="bg-[#15191D] border border-white/10 rounded-2xl p-5 md:p-6 space-y-5">
+              <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-3">
+                <div><p className="text-xs uppercase tracking-wider text-[#B8F34A] font-bold">Food diary</p><h2 className="text-xl font-black mt-1">Today's intake</h2></div>
+                <div className="text-sm text-gray-400">{loggedTotals.calories} <span className="text-white">kcal</span> · {loggedTotals.protein}g protein</div>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
+                <label className="text-xs text-gray-400">Food <select value={selectedFoodId} onChange={e => setSelectedFoodId(e.target.value)} className="mt-1 w-full rounded-xl bg-[#090c0e] border border-white/10 px-3 py-2.5 text-white">{foodsDb.map(food => <option key={food.id} value={food.id}>{food.name}</option>)}</select></label>
+                <label className="text-xs text-gray-400">Meal <select value={selectedMeal} onChange={e => setSelectedMeal(e.target.value)} className="mt-1 w-full rounded-xl bg-[#090c0e] border border-white/10 px-3 py-2.5 text-white">{["Breakfast", "Lunch", "Dinner", "Snack"].map(meal => <option key={meal}>{meal}</option>)}</select></label>
+                <label className="text-xs text-gray-400">Servings <input type="number" min="0.25" max="10" step="0.25" value={servingMultiplier} onChange={e => setServingMultiplier(e.target.value)} className="mt-1 w-full rounded-xl bg-[#090c0e] border border-white/10 px-3 py-2.5 text-white" /></label>
+                <button onClick={() => { if (!selectedFoodId || Number(servingMultiplier) <= 0) return; setDailyLog(log => [...log, { id: `log_${Date.now()}`, meal: selectedMeal, foodId: selectedFoodId, multiplier: Number(servingMultiplier) }]); }} className="self-end rounded-xl bg-[#B8F34A] px-4 py-3 text-sm font-extrabold text-black flex items-center justify-center gap-2"><Plus className="w-4 h-4" /> Add food</button>
+              </div>
+              <div className="space-y-2">
+                {dailyLog.length === 0 && <p className="text-sm text-gray-500 py-4">Nothing logged yet. Add a food above to start tracking today's intake.</p>}
+                {dailyLog.map(entry => {
+                  const food = foodsDb.find(item => item.id === entry.foodId);
+                  if (!food) return null;
+                  return <div key={entry.id} className="flex items-center gap-3 rounded-xl bg-[#090c0e] border border-white/5 px-3 py-3">
+                    <div className="min-w-0 flex-1"><p className="text-sm font-bold truncate">{food.name}</p><p className="text-xs text-gray-500">{entry.meal} · {entry.multiplier} serving(s)</p></div>
+                    <div className="text-right shrink-0"><p className="text-sm font-bold">{Math.round(food.calories * entry.multiplier)} kcal</p><p className="text-xs text-gray-500">{Math.round(food.protein * entry.multiplier)}g protein</p></div>
+                    <button onClick={() => setDailyLog(log => log.filter(item => item.id !== entry.id))} aria-label={`Remove ${food.name}`} className="p-2 rounded-lg text-gray-500 hover:text-red-400 hover:bg-red-400/10"><Trash2 className="w-4 h-4" /></button>
+                  </div>;
+                })}
+              </div>
+            </section>
           </div>
         )}
 
@@ -975,16 +1063,16 @@ export default function App() {
                 <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-[#B8F34A]/20 text-[#B8F34A] text-xs font-bold">
                   <Crown className="w-3.5 h-3.5 fill-current" /> PRO Exclusive Suite
                 </div>
-                <h1 className="text-3xl font-black">AI Coach, TND Budget Optimizer & Muscle Heatmaps</h1>
+                <h1 className="text-3xl font-black">Your next level, thoughtfully planned.</h1>
                 <p className="text-sm text-gray-300 leading-relaxed">
                   {isPremium
-                    ? "Your PRO subscription is active! You have full access to automated volume adjustments and local Tunisian budget solvers."
-                    : "Unlock this section by upgrading your account to FitForge PRO for 20 TND per month."}
+                    ? "Your account is marked as PRO. Some advanced features are still in development."
+                    : "The PRO experience is planned to include deeper progress insights, training guidance and Tunisian grocery budgeting. Checkout is not connected yet, so no payment can be taken from this page."}
                 </p>
 
                 {!isPremium && (
                   <button onClick={handleUpgradeToPro} className="px-6 py-3.5 rounded-xl bg-[#B8F34A] text-black font-extrabold text-sm hover:brightness-110 transition shadow-lg">
-                    Activate PRO Subscription — 20 TND / month
+                    Check PRO availability — 20 TND / month
                   </button>
                 )}
               </div>
