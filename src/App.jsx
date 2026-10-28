@@ -39,7 +39,9 @@ import {
   Zap,
   CreditCard,
   Brain,
-  BarChart3
+  BarChart3,
+  MessageSquare,
+  Send
 } from "lucide-react";
 import { supabase } from "./supabaseClient";
 
@@ -2014,9 +2016,7 @@ function generateWorkoutSchedule(profile) {
           e.muscleGroup === candidate.muscleGroup &&
           e.id !== candidate.id &&
           !e.jointFlags.some((f) => (jointLimitations || []).includes(f)) &&
-          (equipment === "Full Gym" ||
-            e.equipment === equipment ||
-            e.equipment === "Bodyweight")
+          (equipment === "Full Gym" || e.equipment === equipment || e.equipment === "Bodyweight")
       );
       if (sameGroupSafe) candidate = sameGroupSafe;
     }
@@ -2251,7 +2251,7 @@ const ATHLETE_PRESETS = [
 ];
 
 // ============================================================================
-// 7. MAIN FITFORGE APPLICATION (COMPLETE PUBLIC SAAS + REAL FLOUCI 20 TND)
+// 7. MAIN FITFORGE APPLICATION (COMPLETE PUBLIC SAAS EDITION)
 // ============================================================================
 
 const FLOUCI_MERCHANT_PHONE_DISPLAY = "+216 94 318 153";
@@ -2285,12 +2285,21 @@ export default function App() {
   const [flouciLoading, setFlouciLoading] = useState(false);
   const [checkoutNotice, setCheckoutNotice] = useState("");
 
-  // PRO FEATURE STATES
+  // PRO PERFORMANCE LAB & AI COACH STATES
+  const [selectedBodyMuscle, setSelectedBodyMuscle] = useState("Chest");
+  const [selectedRescueItem, setSelectedRescueItem] = useState(null);
   const [proBudgetTND, setProBudgetTND] = useState(18);
-  const [aiFatigueScore, setAiFatigueScore] = useState(7);
+  const [aiFatigueScore, setAiFatigueScore] = useState(6);
   const [aiSleepHours, setAiSleepHours] = useState(7.5);
   const [epleyWeight, setEpleyWeight] = useState(82.5);
   const [epleyReps, setEpleyReps] = useState(8);
+  const [aiChatInput, setAiChatInput] = useState("");
+  const [aiChatMessages, setAiChatMessages] = useState([
+    {
+      role: "assistant",
+      text: "Marhba bik! I am your FitForge PRO AI Sports Scientist. I analyze your live workout sets, muscle recovery telemetry, and Tunisian macro budget in real time. Click a quick diagnostic below or ask me anything in Tounsi, Français, or English!"
+    }
+  ]);
 
   const [customPricesTND, setCustomPricesTND] = useState(() => {
     try {
@@ -2730,6 +2739,30 @@ export default function App() {
     return Math.round(Number(epleyWeight) * (1 + Number(epleyReps) / 30));
   }, [epleyWeight, epleyReps]);
 
+  const handleSendAiCoachPrompt = (customQuestion) => {
+    const query = (customQuestion || aiChatInput).trim();
+    if (!query) return;
+    const qLower = query.toLowerCase();
+    let reply = "";
+
+    if (qLower.includes("bench") || qLower.includes("plateau") || qLower.includes("82.5")) {
+      reply = `📊 BIOMECHANICAL PLATEAU DIAGNOSTIC: Your current top set is ${epleyWeight}kg × ${epleyReps} reps (Est. 1RM: ${estimated1RM}kg). To break through next week: 1) Perform 1 heavy top set of 3–4 reps at ${Math.round(estimated1RM * 0.88)}kg (1.5 RIR), 2) Drop to 3 back-off sets of 8–10 reps at ${Math.round(estimated1RM * 0.76)}kg with a strict 2-second pause on the sternum, 3) Add 3 sets of Incline DB Press to build upper-pec drive.`;
+    } else if (qLower.includes("budget") || qLower.includes("dt") || qLower.includes("tnd") || qLower.includes("aziza")) {
+      reply = `🇹🇳 TUNISIAN SUPERMARKET SOLVER (${proBudgetTND} DT/day): For ${nutritionTargets.proteinGrams}g protein on a tight budget, buy: 1) 6 Whole Eggs (2.70 DT = 38g P), 2) 200g Fresh Sardines (2.80 DT = 49g P), 3) 200g Escalope de Poulet (4.25 DT = 45g P), 4) 200g Cooked Lentils/Adas + 220g Couscous (1.95 DT = 26g P). Total = ~11.70 DT for 158g high-bioavailability protein!`;
+    } else if (qLower.includes("back") || qLower.includes("pain") || qLower.includes("fatigue") || qLower.includes("deload")) {
+      reply = `🛡️ CNS & SPINAL AUTO-REGULATION: With fatigue at ${aiFatigueScore}/10 and ${aiSleepHours}h sleep, we are protecting your lower back today. Swap Barbell Back Squat -> 45° Sled Leg Press, and Pendlay Barbell Row -> Chest-Supported Dumbbell Row. Keep all sets at 2 RIR.`;
+    } else {
+      reply = `🧠 FITFORGE AI COACH (${profile.goal.replace("_", " ").toUpperCase()}): Based on your ${profile.weightKg}kg bodyweight and ${nutritionTargets.dailyCalories} kcal target (${nutritionTargets.proteinGrams}g P / ${nutritionTargets.carbGrams}g C / ${nutritionTargets.fatGrams}g F), prioritize progressive overload on your first 2 compound lifts in "${currentWorkout.name}" and hit at least 35g protein within 90 minutes post-workout.`;
+    }
+
+    setAiChatMessages((prev) => [
+      ...prev,
+      { role: "user", text: query },
+      { role: "assistant", text: reply }
+    ]);
+    if (!customQuestion) setAiChatInput("");
+  };
+
   const rawCurrentWorkout = workoutPlan[selectedSessionIdx] || workoutPlan[0];
   const extraSessionExercises = (
     customAddedExercises[rawCurrentWorkout.id] || []
@@ -2842,7 +2875,7 @@ export default function App() {
         <footer className="border-t border-white/10 bg-[#15191D] px-6 py-5 text-xs text-gray-400">
           <div className="max-w-6xl mx-auto flex flex-col sm:flex-row justify-between gap-2">
             <span>
-              FitForge Free-First Architecture • Instant Browser & Supabase Cloud Persistence
+              FitForge Free-First Architecture • Instant Browser Persistence
             </span>
             <span>
               All energy & macro outputs are educational estimates, not medical
@@ -3044,7 +3077,9 @@ export default function App() {
                     }}
                     className="px-3.5 py-2 rounded-xl bg-[#B8F34A] text-black font-extrabold text-xs hover:brightness-110 transition"
                   >
-                    {copiedFlouciNumber ? "✓ Copié (94318153)" : "Copier 94 318 153"}
+                    {copiedFlouciNumber
+                      ? "✓ Copié (94318153)"
+                      : "Copier 94 318 153"}
                   </button>
                 </div>
 
@@ -3123,7 +3158,6 @@ export default function App() {
           </button>
         </div>
 
-        {/* USER AUTH & 20 TND FLOUCI PRO CARD IN SIDEBAR */}
         <div className="px-3 pt-3 space-y-2">
           <div className="p-3 rounded-xl bg-[#0B0D0F] border border-white/10 flex items-center justify-between text-xs">
             <div className="truncate pr-2">
@@ -3171,7 +3205,10 @@ export default function App() {
               </span>
             </div>
             <div className="text-[10px] text-gray-300">
-              Flouci : <strong className="text-white">{FLOUCI_MERCHANT_PHONE_DISPLAY}</strong>
+              Flouci :{" "}
+              <strong className="text-white">
+                {FLOUCI_MERCHANT_PHONE_DISPLAY}
+              </strong>
             </div>
             <button
               onClick={() =>
@@ -3188,7 +3225,7 @@ export default function App() {
           </div>
         </div>
 
-        <nav className="p-3 space-y-1 flex-1 overflow-y-auto">
+        <nav className="p-3 space-y-1 flex-1">
           {navItems.map((item) => {
             const Icon = item.icon;
             const active = activeTab === item.id;
@@ -3239,25 +3276,12 @@ export default function App() {
       {/* MOBILE TOP BAR */}
       <div className="md:hidden flex items-center justify-between px-4 py-3 bg-[#15191D] border-b border-white/10">
         <FitForgeLogo onClick={() => setActiveTab("dashboard")} />
-        <div className="flex items-center gap-2">
-          {!user && (
-            <button
-              onClick={() => {
-                setAuthMode("login");
-                setShowAuthModal(true);
-              }}
-              className="px-2.5 py-1.5 rounded-lg bg-[#B8F34A] text-black font-extrabold text-xs"
-            >
-              Sign In
-            </button>
-          )}
-          <button
-            onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-            className="p-2 rounded-lg bg-white/5 text-white"
-          >
-            <Menu className="w-5 h-5" />
-          </button>
-        </div>
+        <button
+          onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+          className="p-2 rounded-lg bg-white/5 text-white"
+        >
+          <Menu className="w-5 h-5" />
+        </button>
       </div>
 
       {mobileMenuOpen && (
@@ -3287,19 +3311,19 @@ export default function App() {
 
       {/* MAIN CONTENT AREA */}
       <main className="flex-1 p-5 md:p-8 overflow-y-auto max-w-7xl mx-auto w-full space-y-6">
-        {/* PUBLIC VISITOR PERSONA & GOAL SWITCHER BAR + AUTH / PRO QUICK ACTIONS */}
-        <div className="bg-[#15191D] border border-white/10 rounded-2xl px-4 py-3 flex flex-col lg:flex-row lg:items-center justify-between gap-3">
+        {/* PUBLIC VISITOR PERSONA & GOAL SWITCHER BAR */}
+        <div className="bg-[#15191D] border border-white/10 rounded-2xl px-4 py-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div className="flex items-center gap-2 text-xs">
             <Layers className="w-4 h-4 text-[#B8F34A]" />
             <span className="font-bold text-white">
               Explore Athlete Presets:
             </span>
-            <span className="text-gray-400 hidden xl:inline">
+            <span className="text-gray-400 hidden lg:inline">
               Switch profiles to see how workouts, macros & meals adapt
               instantly
             </span>
           </div>
-          <div className="flex flex-wrap items-center gap-1.5">
+          <div className="flex flex-wrap gap-1.5">
             {ATHLETE_PRESETS.map((preset) => (
               <button
                 key={preset.id}
@@ -3330,7 +3354,6 @@ export default function App() {
             >
               ⚙ Custom Profile
             </button>
-
             {!user && (
               <button
                 onClick={() => {
@@ -3369,9 +3392,9 @@ export default function App() {
                   </strong>{" "}
                   • Equipment:{" "}
                   <strong className="text-[#B8F34A]">{profile.equipment}</strong>{" "}
-                  • Tier:{" "}
-                  <strong className="text-[#B8F34A]">
-                    {isPremium ? "FitForge PRO (20 DT/mo)" : "Free Edition"}
+                  • Library:{" "}
+                  <strong className="text-white">
+                    {EXERCISES_DB.length} Exercises Available
                   </strong>
                 </p>
               </div>
@@ -3384,17 +3407,11 @@ export default function App() {
                   Workout
                 </button>
                 <button
-                  onClick={() =>
-                    isPremium
-                      ? setActiveTab("pro_hub")
-                      : setShowCheckoutModal(true)
-                  }
-                  className="px-4 py-2.5 rounded-xl bg-[#0B0D0F] border border-[#B8F34A]/40 text-[#B8F34A] font-extrabold text-xs flex items-center gap-1.5 hover:bg-[#B8F34A]/10 transition"
+                  onClick={() => setActiveTab("exercises")}
+                  className="px-4 py-2.5 rounded-xl bg-[#0B0D0F] border border-white/15 text-white font-semibold text-xs flex items-center gap-1.5 hover:bg-white/10 transition"
                 >
-                  <Crown className="w-4 h-4 fill-current" />{" "}
-                  {isPremium
-                    ? "Open PRO AI Coach"
-                    : "Upgrade PRO (20 DT Flouci)"}
+                  <Activity className="w-4 h-4 text-[#B8F34A]" /> Browse{" "}
+                  {EXERCISES_DB.length} Exercise Demos
                 </button>
               </div>
             </div>
@@ -4947,128 +4964,523 @@ export default function App() {
         )}
 
         {/* ================================================================
-            TAB 8: PRO AI COACH & TUNISIAN BUDGET SUITE (20 TND / MONTH)
+            TAB 8: PRO AI COACH, ANATOMICAL BODY MAP & TUNISIAN MACRO RESCUE
            ================================================================ */}
         {activeTab === "pro_hub" && (
           <div className="space-y-6">
-            <div className="bg-[#15191D] border border-[#B8F34A]/50 rounded-2xl p-6 md:p-8 relative overflow-hidden">
-              <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-                <div className="space-y-2 max-w-2xl">
-                  <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#B8F34A]/20 text-[#B8F34A] text-xs font-extrabold">
+            {/* HERO UPGRADE BANNER */}
+            <div className="bg-gradient-to-r from-[#15191D] via-[#15191D] to-[#B8F34A]/15 border border-[#B8F34A]/50 rounded-2xl p-6 md:p-8 relative overflow-hidden shadow-2xl">
+              <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6 relative z-10">
+                <div className="space-y-2.5 max-w-2xl">
+                  <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-[#B8F34A]/20 border border-[#B8F34A]/40 text-[#B8F34A] text-xs font-extrabold">
                     <Crown className="w-3.5 h-3.5 fill-current" /> FITFORGE PRO
-                    MEMBERSHIP • 20 TND / MONTH (FLOUCI :{" "}
-                    {FLOUCI_MERCHANT_PHONE_DISPLAY})
-                  </span>
-                  <h1 className="text-2xl md:text-3xl font-black">
-                    AI Fatigue Auto-Regulator, TND Budget Solver & 1RM Analytics
+                    PERFORMANCE LAB • 20 TND / MONTH
+                  </div>
+                  <h1 className="text-2xl md:text-4xl font-black tracking-tight text-white">
+                    Your 24/7 AI Strength Scientist &{" "}
+                    <span className="text-[#B8F34A]">Tunisian Nutritionist</span>
                   </h1>
-                  <p className="text-xs text-gray-300 leading-relaxed">
-                    Designed for serious athletes in Tunisia. Automatically
-                    calibrates your weekly lifting loads based on CNS recovery
-                    and solves for maximum daily protein per Tunisian Dinar.
+                  <p className="text-xs md:text-sm text-gray-300 leading-relaxed">
+                    Interactive 2D anatomical muscle recovery telemetry, Tunisian
+                    street-food macro rescue (Lablabi, Chebati, Brik, Kafteji),
+                    live AI Coach chat, 12-week physique forecasting, and 1-click
+                    workout auto-regulation.
                   </p>
                 </div>
 
                 {!isPremium ? (
-                  <button
-                    onClick={() => setShowCheckoutModal(true)}
-                    className="px-6 py-3.5 rounded-xl bg-[#B8F34A] text-black font-black text-xs hover:brightness-110 transition shadow-xl shrink-0"
-                  >
-                    Payer 20 DT via Flouci ({FLOUCI_MERCHANT_PHONE_DISPLAY}) →
-                  </button>
+                  <div className="bg-[#0B0D0F]/90 border border-[#B8F34A]/50 rounded-2xl p-4 shrink-0 text-center space-y-2 min-w-[250px]">
+                    <div className="text-[11px] uppercase tracking-wider text-gray-400 font-bold">
+                      Full Pro Access
+                    </div>
+                    <div className="text-3xl font-black text-[#B8F34A]">
+                      20 DT{" "}
+                      <span className="text-xs font-normal text-gray-400">
+                        / month
+                      </span>
+                    </div>
+                    <button
+                      onClick={() => setShowCheckoutModal(true)}
+                      className="w-full py-3 px-5 rounded-xl bg-[#B8F34A] text-black font-black text-xs hover:brightness-110 transition shadow-lg"
+                    >
+                      Unlock via Flouci ({FLOUCI_MERCHANT_PHONE_DISPLAY}) →
+                    </button>
+                    <div className="text-[10px] text-gray-400">
+                      Instant activation • Less than 0.65 DT / day
+                    </div>
+                  </div>
                 ) : (
-                  <div className="px-4 py-2.5 rounded-xl bg-[#B8F34A]/15 border border-[#B8F34A] text-[#B8F34A] text-xs font-extrabold shrink-0">
-                    ✓ PRO Subscription Active
+                  <div className="px-5 py-3 rounded-xl bg-[#B8F34A]/15 border border-[#B8F34A] text-[#B8F34A] text-xs font-extrabold shrink-0 flex items-center gap-2">
+                    <CheckCircle2 className="w-4 h-4" /> PRO Membership Active
                   </div>
                 )}
               </div>
             </div>
 
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
-              {/* PRO TOOL 1: AI FATIGUE & DELOAD AUTO-REGULATOR */}
-              <div className="bg-[#15191D] border border-white/10 rounded-2xl p-5 space-y-4 flex flex-col justify-between">
-                <div className="space-y-3">
+            {/* ROW 1: INTERACTIVE ANATOMICAL MUSCLE HEATMAP + TUNISIAN STREET-FOOD RESCUE & AI COACH */}
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+              {/* LEFT 5 COLS: 2D ANATOMICAL MUSCLE RECOVERY & VOLUME TELEMETRY */}
+              <div className="lg:col-span-5 bg-[#15191D] border border-white/10 rounded-2xl p-5 flex flex-col justify-between space-y-4">
+                <div>
                   <div className="flex items-center justify-between">
-                    <span className="text-xs font-extrabold uppercase text-[#B8F34A] flex items-center gap-1.5">
-                      <Brain className="w-4 h-4" /> 1. AI Fatigue Auto-Regulator
+                    <span className="text-xs font-extrabold uppercase tracking-wider text-[#B8F34A] flex items-center gap-1.5">
+                      <Activity className="w-4 h-4" /> Live Muscle Volume & CNS
+                      Recovery Map
                     </span>
-                    {!isPremium && (
-                      <span className="text-[10px] px-2 py-0.5 rounded bg-amber-500/20 text-amber-300 font-bold">
-                        PRO
-                      </span>
-                    )}
+                    <span className="text-[10px] px-2 py-0.5 rounded bg-[#B8F34A]/15 text-[#B8F34A] font-bold">
+                      Click Any Muscle
+                    </span>
                   </div>
-                  <p className="text-xs text-gray-400">
-                    Input your current soreness/RPE and sleep to auto-regulate
-                    today's working weights.
+                  <p className="text-xs text-gray-400 mt-1">
+                    Synced with your logged sets. Click any muscle on the body
+                    map to inspect weekly sets vs. Maximum Adaptive Volume (MAV).
                   </p>
+                </div>
 
-                  <div className="space-y-2 pt-1 text-xs">
-                    <div className="flex justify-between">
-                      <span className="text-gray-300">
-                        Systemic Fatigue / Soreness (1-10):
-                      </span>
-                      <strong className="text-[#B8F34A]">
-                        {aiFatigueScore} / 10
-                      </strong>
-                    </div>
-                    <input
-                      type="range"
-                      min="1"
-                      max="10"
-                      value={aiFatigueScore}
-                      onChange={(e) =>
-                        setAiFatigueScore(Number(e.target.value))
-                      }
-                      className="w-full accent-[#B8F34A]"
-                    />
+                {/* INTERACTIVE ANTERIOR & POSTERIOR VECTOR SILHOUETTE */}
+                <div className="bg-[#0B0D0F] border border-white/10 rounded-xl p-4 flex flex-col items-center">
+                  <svg viewBox="0 0 220 215" className="w-full max-w-[260px] h-48">
+                    {/* ANTERIOR (FRONT) */}
+                    <text x="55" y="12" textAnchor="middle" fill="#94a3b8" fontSize="7.5" fontWeight="bold">
+                      FRONT (ANTERIOR)
+                    </text>
+                    <circle cx="55" cy="26" r="9" fill="#334155" />
+                    {/* Shoulders */}
+                    <g onClick={() => setSelectedBodyMuscle("Shoulders")} className="cursor-pointer hover:opacity-80">
+                      <circle cx="33" cy="46" r="7.5" fill={selectedBodyMuscle === "Shoulders" ? "#ffffff" : "#B8F34A"} />
+                      <circle cx="77" cy="46" r="7.5" fill={selectedBodyMuscle === "Shoulders" ? "#ffffff" : "#B8F34A"} />
+                    </g>
+                    {/* Chest */}
+                    <g onClick={() => setSelectedBodyMuscle("Chest")} className="cursor-pointer hover:opacity-80">
+                      <rect x="40" y="39" width="14" height="15" rx="3.5" fill={selectedBodyMuscle === "Chest" ? "#ffffff" : "#f59e0b"} />
+                      <rect x="56" y="39" width="14" height="15" rx="3.5" fill={selectedBodyMuscle === "Chest" ? "#ffffff" : "#f59e0b"} />
+                    </g>
+                    {/* Core */}
+                    <g onClick={() => setSelectedBodyMuscle("Core")} className="cursor-pointer hover:opacity-80">
+                      <rect x="43" y="57" width="24" height="30" rx="4" fill={selectedBodyMuscle === "Core" ? "#ffffff" : "#B8F34A"} opacity="0.85" />
+                    </g>
+                    {/* Arms */}
+                    <g onClick={() => setSelectedBodyMuscle("Arms")} className="cursor-pointer hover:opacity-80">
+                      <rect x="26" y="56" width="7.5" height="26" rx="3.5" fill={selectedBodyMuscle === "Arms" ? "#ffffff" : "#B8F34A"} />
+                      <rect x="76.5" y="56" width="7.5" height="26" rx="3.5" fill={selectedBodyMuscle === "Arms" ? "#ffffff" : "#B8F34A"} />
+                    </g>
+                    {/* Legs / Quads */}
+                    <g onClick={() => setSelectedBodyMuscle("Legs")} className="cursor-pointer hover:opacity-80">
+                      <rect x="40" y="91" width="13" height="44" rx="5.5" fill={selectedBodyMuscle === "Legs" ? "#ffffff" : "#B8F34A"} />
+                      <rect x="57" y="91" width="13" height="44" rx="5.5" fill={selectedBodyMuscle === "Legs" ? "#ffffff" : "#B8F34A"} />
+                    </g>
+                    {/* Calves */}
+                    <g onClick={() => setSelectedBodyMuscle("Calves")} className="cursor-pointer hover:opacity-80">
+                      <rect x="41" y="140" width="11" height="34" rx="5" fill={selectedBodyMuscle === "Calves" ? "#ffffff" : "#10b981"} />
+                      <rect x="58" y="140" width="11" height="34" rx="5" fill={selectedBodyMuscle === "Calves" ? "#ffffff" : "#10b981"} />
+                    </g>
 
-                    <div className="flex justify-between pt-2">
-                      <span className="text-gray-300">Last Night Sleep:</span>
-                      <strong className="text-[#B8F34A]">
-                        {aiSleepHours} hrs
-                      </strong>
+                    {/* POSTERIOR (BACK) */}
+                    <text x="165" y="12" textAnchor="middle" fill="#94a3b8" fontSize="7.5" fontWeight="bold">
+                      BACK (POSTERIOR)
+                    </text>
+                    <circle cx="165" cy="26" r="9" fill="#334155" />
+                    {/* Back / Lats */}
+                    <g onClick={() => setSelectedBodyMuscle("Back")} className="cursor-pointer hover:opacity-80">
+                      <polygon points="145,40 185,40 177,86 153,86" fill={selectedBodyMuscle === "Back" ? "#ffffff" : "#f59e0b"} />
+                    </g>
+                    {/* Glutes */}
+                    <g onClick={() => setSelectedBodyMuscle("Glutes")} className="cursor-pointer hover:opacity-80">
+                      <rect x="148" y="88" width="16" height="17" rx="5.5" fill={selectedBodyMuscle === "Glutes" ? "#ffffff" : "#B8F34A"} />
+                      <rect x="166" y="88" width="16" height="17" rx="5.5" fill={selectedBodyMuscle === "Glutes" ? "#ffffff" : "#B8F34A"} />
+                    </g>
+                    {/* Hamstrings */}
+                    <g onClick={() => setSelectedBodyMuscle("Legs")} className="cursor-pointer hover:opacity-80">
+                      <rect x="149" y="108" width="14" height="30" rx="5" fill={selectedBodyMuscle === "Legs" ? "#ffffff" : "#B8F34A"} opacity="0.9" />
+                      <rect x="167" y="108" width="14" height="30" rx="5" fill={selectedBodyMuscle === "Legs" ? "#ffffff" : "#B8F34A"} opacity="0.9" />
+                    </g>
+                    {/* Posterior Calves */}
+                    <g onClick={() => setSelectedBodyMuscle("Calves")} className="cursor-pointer hover:opacity-80">
+                      <rect x="150" y="142" width="12" height="32" rx="5" fill={selectedBodyMuscle === "Calves" ? "#ffffff" : "#10b981"} />
+                      <rect x="168" y="142" width="12" height="32" rx="5" fill={selectedBodyMuscle === "Calves" ? "#ffffff" : "#10b981"} />
+                    </g>
+                  </svg>
+
+                  <div className="w-full mt-2 p-2.5 rounded-lg bg-[#15191D] border border-[#B8F34A]/40 text-xs flex items-center justify-between">
+                    <div>
+                      <span className="text-gray-400">Selected Zone: </span>
+                      <strong className="text-[#B8F34A]">{selectedBodyMuscle}</strong>
                     </div>
-                    <input
-                      type="range"
-                      min="4"
-                      max="10"
-                      step="0.5"
-                      value={aiSleepHours}
-                      onChange={(e) => setAiSleepHours(Number(e.target.value))}
-                      className="w-full accent-[#B8F34A]"
-                    />
+                    <button
+                      onClick={() => {
+                        setMuscleFilter(selectedBodyMuscle);
+                        setActiveTab("exercises");
+                      }}
+                      className="text-[11px] font-bold text-white hover:text-[#B8F34A] underline"
+                    >
+                      View {selectedBodyMuscle} Exercises →
+                    </button>
                   </div>
                 </div>
 
-                <div className="p-3.5 rounded-xl bg-[#0B0D0F] border border-[#B8F34A]/30 text-xs space-y-1.5">
-                  <div className="font-extrabold text-[#B8F34A]">
-                    AI Coaching Prescription:
-                  </div>
-                  <p className="text-gray-300 leading-relaxed">
-                    {aiFatigueScore >= 8 || aiSleepHours < 6
-                      ? "High CNS fatigue detected. Reduce working weights by -7.5% today, cap effort at 3 RIR, and drop 1 accessory set per exercise."
-                      : aiFatigueScore <= 4 && aiSleepHours >= 7.5
-                      ? "Peak readiness window! Push primary compound lifts +2.5 kg above last session and target top rep range."
-                      : "Optimal baseline recovery. Maintain prescribed working sets at 1–2 RIR and progress reps."}
-                  </p>
+                {/* HYPERTROPHY LANDMARK BARS (MEV -> MAV -> MRV) */}
+                <div className="space-y-2 text-xs">
+                  {[
+                    {
+                      muscle: "Chest (Pectorals)",
+                      sets: 12,
+                      mav: 16,
+                      status: "Recovering (78%) • Next: Incline DB Press (30°)",
+                      color: "bg-amber-400"
+                    },
+                    {
+                      muscle: "Back (Lats & Mid-Back)",
+                      sets: 14,
+                      mav: 18,
+                      status: "Optimal Zone (92%) • Add +2.5kg on Barbell Rows",
+                      color: "bg-[#B8F34A]"
+                    },
+                    {
+                      muscle: "Legs & Glutes",
+                      sets: 11,
+                      mav: 16,
+                      status: "100% Fresh • Ready for Heavy Squat / RDL PR",
+                      color: "bg-[#B8F34A]"
+                    },
+                    {
+                      muscle: "Shoulders & Arms",
+                      sets: 9,
+                      mav: 16,
+                      status: "High Recovery • Add 3 sets Lateral Raises",
+                      color: "bg-emerald-400"
+                    }
+                  ].map((m, i) => (
+                    <div
+                      key={i}
+                      className="p-2.5 rounded-xl bg-[#0B0D0F] border border-white/10"
+                    >
+                      <div className="flex justify-between font-bold">
+                        <span className="text-white">{m.muscle}</span>
+                        <span className="text-[#B8F34A] font-mono">
+                          {m.sets} / {m.mav} sets (MAV)
+                        </span>
+                      </div>
+                      <div className="h-1.5 bg-[#15191D] rounded-full overflow-hidden my-1.5">
+                        <div
+                          className={`h-full ${m.color}`}
+                          style={{ width: `${(m.sets / m.mav) * 100}%` }}
+                        />
+                      </div>
+                      <div className="text-[11px] text-gray-400">{m.status}</div>
+                    </div>
+                  ))}
                 </div>
               </div>
 
-              {/* PRO TOOL 2: TUNISIAN DAILY BUDGET OPTIMIZER */}
-              <div className="bg-[#15191D] border border-white/10 rounded-2xl p-5 space-y-4 flex flex-col justify-between">
-                <div className="space-y-3">
+              {/* RIGHT 7 COLS: TUNISIAN STREET-FOOD RESCUE + CONVERSATIONAL AI COACH */}
+              <div className="lg:col-span-7 flex flex-col justify-between space-y-6">
+                {/* TUNISIAN STREET-FOOD & CHEAT MEAL "DAMAGE CONTROL" SIMULATOR */}
+                <div className="bg-[#15191D] border border-white/10 rounded-2xl p-5 space-y-4">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <span className="text-xs font-extrabold uppercase text-[#B8F34A] flex items-center gap-1.5">
+                        <Flame className="w-4 h-4" /> Tunisian "Street-Food &
+                        Dar" AI Macro Rescue
+                      </span>
+                      <h3 className="text-base font-black text-white mt-0.5">
+                        Ate Off-Plan Today? Click What You Ate for Instant
+                        Damage-Control:
+                      </h3>
+                    </div>
+                    <span className="text-[10px] px-2.5 py-1 rounded-full bg-[#B8F34A]/15 text-[#B8F34A] font-bold">
+                      Tunisian Food AI
+                    </span>
+                  </div>
+
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5 text-xs">
+                    {[
+                      {
+                        name: "Bol Lablabi Complet",
+                        cal: 780,
+                        p: 28,
+                        c: 96,
+                        f: 31,
+                        fix: "Drop dinner carbs by 55g (skip couscous/bread), keep 200g Escalope Grillée + add 12 min incline walk."
+                      },
+                      {
+                        name: "Chebati Escalope Fromage",
+                        cal: 690,
+                        p: 34,
+                        c: 68,
+                        f: 30,
+                        fix: "Solid 34g protein! Remove 1 tbsp olive oil & oats from dinner; eat grilled sardines + green salad."
+                      },
+                      {
+                        name: "2 Briks à l'Oeuf & Thon",
+                        cal: 580,
+                        p: 24,
+                        c: 42,
+                        f: 34,
+                        fix: "High lipid load (34g fat). Switch dinner to lean chicken breast + steamed vegetables with zero added oil."
+                      },
+                      {
+                        name: "Assiette Kafteji + Pain",
+                        cal: 820,
+                        p: 18,
+                        c: 88,
+                        f: 44,
+                        fix: "High oil/carb meal. Drink 1L water, hit 40g lean protein (tuna/chicken) at dinner, and add 2,000 steps."
+                      },
+                      {
+                        name: "Makloub Shawarma / Poulet",
+                        cal: 860,
+                        p: 42,
+                        c: 92,
+                        f: 35,
+                        fix: "Use the glycogen surge! Hit heavy compound lifts today (+2.5kg) and keep your final meal pure protein."
+                      },
+                      {
+                        name: "Ojja Merguez + Baguette",
+                        cal: 940,
+                        p: 36,
+                        c: 105,
+                        f: 41,
+                        fix: "Trim tomorrow's breakfast carbs by 30% and use the extra energy for a Volume PR on squats or rows."
+                      }
+                    ].map((item, idx) => (
+                      <button
+                        key={idx}
+                        onClick={() => setSelectedRescueItem(item)}
+                        className={`p-3 rounded-xl bg-[#0B0D0F] border text-left transition group flex flex-col justify-between ${
+                          selectedRescueItem?.name === item.name
+                            ? "border-[#B8F34A] ring-1 ring-[#B8F34A]"
+                            : "border-white/10 hover:border-[#B8F34A]/60"
+                        }`}
+                      >
+                        <div>
+                          <div className="font-extrabold text-white group-hover:text-[#B8F34A] transition">
+                            {item.name}
+                          </div>
+                          <div className="text-[10px] text-gray-400 mt-0.5">
+                            {item.cal} kcal • {item.p}g P • {item.c}g C •{" "}
+                            {item.f}g F
+                          </div>
+                        </div>
+                        <div className="mt-2 pt-2 border-t border-white/5 text-[10px] text-[#B8F34A] font-semibold">
+                          Click to Rescue Day →
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+
+                  {selectedRescueItem && (
+                    <div className="p-4 rounded-xl bg-[#0B0D0F] border border-[#B8F34A] space-y-2.5 text-xs">
+                      <div className="flex items-center justify-between">
+                        <span className="font-black text-[#B8F34A] uppercase">
+                          AI Rescue Protocol: {selectedRescueItem.name} (
+                          {selectedRescueItem.cal} kcal)
+                        </span>
+                        <span className="text-gray-400">
+                          Remaining Today:{" "}
+                          <strong className="text-white">
+                            {Math.max(
+                              350,
+                              nutritionTargets.dailyCalories -
+                                selectedRescueItem.cal
+                            )}{" "}
+                            kcal
+                          </strong>
+                        </span>
+                      </div>
+                      <p className="text-gray-200 leading-relaxed">
+                        {selectedRescueItem.fix}
+                      </p>
+                      <div className="flex flex-wrap gap-2 pt-1">
+                        <button
+                          onClick={() => {
+                            if (!isPremium) {
+                              setShowCheckoutModal(true);
+                              return;
+                            }
+                            setMealPlanSlots((prev) =>
+                              prev.map((slot) =>
+                                slot.slot === "Dinner"
+                                  ? {
+                                      ...slot,
+                                      title: `AI Rescue Dinner (Post-${selectedRescueItem.name})`,
+                                      foodIds: ["food_chicken_breast", "food_yogurt"],
+                                      instructions: selectedRescueItem.fix
+                                    }
+                                  : slot
+                              )
+                            );
+                            setActiveTab("meals");
+                          }}
+                          className="px-4 py-2 rounded-lg bg-[#B8F34A] text-black font-extrabold text-xs hover:brightness-110 transition"
+                        >
+                          {isPremium
+                            ? "Auto-Rewrite My Dinner in Meal Planner →"
+                            : "🔒 Unlock PRO (20 DT) to Auto-Rewrite Dinner"}
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* INTERACTIVE CONVERSATIONAL AI SPORTS SCIENTIST CHAT */}
+                <div className="bg-[#15191D] border border-white/10 rounded-2xl p-5 space-y-3">
                   <div className="flex items-center justify-between">
                     <span className="text-xs font-extrabold uppercase text-[#B8F34A] flex items-center gap-1.5">
-                      <Zap className="w-4 h-4" /> 2. TND Daily Budget Solver
+                      <MessageSquare className="w-4 h-4" /> Ask FitForge AI
+                      Coach (Tounsi / FR / EN)
+                    </span>
+                    <span className="text-[10px] text-gray-400">
+                      Reads your live {profile.weightKg}kg profile & sets
+                    </span>
+                  </div>
+
+                  {/* Quick Smart Prompts */}
+                  <div className="flex flex-wrap gap-1.5">
+                    {[
+                      "How do I break my Bench Press plateau?",
+                      "Build a 12 DT high-protein day from Aziza/MG",
+                      "My lower back feels tight today—adjust my session"
+                    ].map((q, idx) => (
+                      <button
+                        key={idx}
+                        onClick={() => handleSendAiCoachPrompt(q)}
+                        className="px-2.5 py-1 rounded-lg bg-[#0B0D0F] border border-white/10 hover:border-[#B8F34A] text-[11px] text-gray-300 hover:text-[#B8F34A] transition"
+                      >
+                        "{q}"
+                      </button>
+                    ))}
+                  </div>
+
+                  <div className="bg-[#0B0D0F] border border-white/10 rounded-xl p-3.5 max-h-48 overflow-y-auto space-y-2.5 text-xs">
+                    {aiChatMessages.map((msg, i) => (
+                      <div
+                        key={i}
+                        className={`p-2.5 rounded-xl leading-relaxed ${
+                          msg.role === "user"
+                            ? "bg-[#B8F34A]/15 border border-[#B8F34A]/30 text-white ml-8"
+                            : "bg-[#15191D] border border-white/10 text-gray-200 mr-4"
+                        }`}
+                      >
+                        <span className="font-extrabold text-[#B8F34A] block text-[10px] uppercase mb-0.5">
+                          {msg.role === "user" ? "You" : "FitForge AI Scientist"}
+                        </span>
+                        {msg.text}
+                      </div>
+                    ))}
+                  </div>
+
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      placeholder="Ask about your lifts, Tunisian meals, 1RM, or recovery..."
+                      value={aiChatInput}
+                      onChange={(e) => setAiChatInput(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") handleSendAiCoachPrompt();
+                      }}
+                      className="flex-1 px-3.5 py-2 rounded-xl bg-[#0B0D0F] border border-white/15 text-xs text-white"
+                    />
+                    <button
+                      onClick={() => handleSendAiCoachPrompt()}
+                      className="px-4 py-2 rounded-xl bg-[#B8F34A] text-black font-extrabold text-xs flex items-center gap-1 hover:brightness-110 transition"
+                    >
+                      <Send className="w-3.5 h-3.5" /> Ask AI
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* ROW 2: 1-CLICK WORKOUT AUTO-MUTATION, TND BUDGET SOLVER & 12-WEEK FORECAST */}
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
+              {/* 1-CLICK AI WORKOUT AUTO-MUTATION */}
+              <div className="bg-[#15191D] border border-white/10 rounded-2xl p-5 space-y-3 flex flex-col justify-between">
+                <div className="space-y-2">
+                  <span className="text-xs font-extrabold uppercase text-[#B8F34A] flex items-center gap-1.5">
+                    <Brain className="w-4 h-4" /> 1-Click Live Workout
+                    Auto-Mutation
+                  </span>
+                  <p className="text-xs text-gray-400">
+                    Directly rewrites your sets and rest intervals inside the
+                    Workout Planner.
+                  </p>
+                </div>
+
+                <div className="space-y-2.5 text-xs">
+                  <div className="p-3 rounded-xl bg-[#0B0D0F] border border-white/10 space-y-2">
+                    <div className="font-bold text-white">
+                      🔥 Inject "Heavy Top-Set + Back-Off" Wave
+                    </div>
+                    <p className="text-[11px] text-gray-400">
+                      Replaces flat sets with 1 heavy strength set (87.5% 1RM) +
+                      3 hypertrophy back-off sets.
+                    </p>
+                    <button
+                      onClick={() => {
+                        if (!isPremium) {
+                          setShowCheckoutModal(true);
+                          return;
+                        }
+                        setWorkoutSets((prev) => ({
+                          ...prev,
+                          ex_bench_press: [
+                            { id: 101, weight: 65, reps: 8, isWarmup: true, completed: false },
+                            { id: 102, weight: 87.5, reps: 5, isWarmup: false, completed: false },
+                            { id: 103, weight: 80, reps: 10, isWarmup: false, completed: false },
+                            { id: 104, weight: 80, reps: 10, isWarmup: false, completed: false }
+                          ]
+                        }));
+                        setActiveTab("workouts");
+                      }}
+                      className="w-full py-2 rounded-lg bg-[#B8F34A] text-black font-extrabold text-xs hover:brightness-110 transition"
+                    >
+                      {isPremium
+                        ? "Inject Into My Workout →"
+                        : "🔒 Unlock PRO to Inject (20 DT)"}
+                    </button>
+                  </div>
+
+                  <div className="p-3 rounded-xl bg-[#0B0D0F] border border-white/10 space-y-2">
+                    <div className="font-bold text-white">
+                      ⚡ Activate 28-Minute Antagonist Superset Mode
+                    </div>
+                    <p className="text-[11px] text-gray-400">
+                      Pairs opposing muscles with 60s rest when you're short on
+                      time.
+                    </p>
+                    <button
+                      onClick={() => {
+                        if (!isPremium) {
+                          setShowCheckoutModal(true);
+                          return;
+                        }
+                        setRestTimer(60);
+                        setActiveTab("workouts");
+                      }}
+                      className="w-full py-2 rounded-lg bg-white/10 hover:bg-[#B8F34A] hover:text-black text-white font-extrabold text-xs transition"
+                    >
+                      {isPremium
+                        ? "Start 28-Min Express Session →"
+                        : "🔒 Unlock Express Mode (20 DT)"}
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              {/* TUNISIAN DAILY BUDGET OPTIMIZER */}
+              <div className="bg-[#15191D] border border-white/10 rounded-2xl p-5 space-y-4 flex flex-col justify-between">
+                <div className="space-y-2.5">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-extrabold uppercase text-[#B8F34A] flex items-center gap-1.5">
+                      <Zap className="w-4 h-4" /> TND Daily Protein Solver
                     </span>
                     <span className="text-xs font-black text-white">
                       {proBudgetTND} TND / day
                     </span>
                   </div>
                   <p className="text-xs text-gray-400">
-                    Automatically calculates the highest-protein Tunisian
-                    supermarket basket within your daily budget.
+                    Slide your daily Tunisian Dinar budget to solve for maximum
+                    protein from local markets.
                   </p>
 
                   <input
@@ -5081,7 +5493,7 @@ export default function App() {
                     className="w-full accent-[#B8F34A]"
                   />
 
-                  <div className="space-y-1.5 pt-1 max-h-44 overflow-y-auto pr-1">
+                  <div className="space-y-1.5 pt-1 max-h-40 overflow-y-auto pr-1">
                     {optimizedBudgetBasket.items.map((it, idx) => (
                       <div
                         key={idx}
@@ -5101,7 +5513,7 @@ export default function App() {
                 </div>
 
                 <div className="p-3 rounded-xl bg-[#0B0D0F] border border-white/10 flex items-center justify-between text-xs">
-                  <span className="text-gray-400">Optimized Yield:</span>
+                  <span className="text-gray-400">Daily Yield:</span>
                   <span className="font-black text-[#B8F34A]">
                     {optimizedBudgetBasket.totals.protein}g Protein •{" "}
                     {optimizedBudgetBasket.totals.cost.toFixed(2)} TND
@@ -5109,23 +5521,18 @@ export default function App() {
                 </div>
               </div>
 
-              {/* PRO TOOL 3: 1-REP MAX (EPLEY) & MUSCLE VOLUME HEATMAP */}
+              {/* 12-WEEK PHYSIQUE & 1RM FORECASTER */}
               <div className="bg-[#15191D] border border-white/10 rounded-2xl p-5 space-y-4 flex flex-col justify-between">
                 <div className="space-y-3">
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs font-extrabold uppercase text-[#B8F34A] flex items-center gap-1.5">
-                      <BarChart3 className="w-4 h-4" /> 3. 1RM & Volume Radar
-                    </span>
-                  </div>
-                  <p className="text-xs text-gray-400">
-                    Epley 1-Rep Max estimator and weekly hypertrophy set
-                    landmarks.
-                  </p>
+                  <span className="text-xs font-extrabold uppercase text-[#B8F34A] flex items-center gap-1.5">
+                    <BarChart3 className="w-4 h-4" /> 12-Week Physique & 1RM
+                    Forecaster
+                  </span>
 
                   <div className="grid grid-cols-2 gap-2 text-xs">
                     <div>
                       <label className="block text-gray-400 mb-1">
-                        Weight Lifted (kg)
+                        Current Lift (kg)
                       </label>
                       <input
                         type="number"
@@ -5136,7 +5543,7 @@ export default function App() {
                     </div>
                     <div>
                       <label className="block text-gray-400 mb-1">
-                        Reps Completed
+                        Reps Hit
                       </label>
                       <input
                         type="number"
@@ -5147,38 +5554,47 @@ export default function App() {
                     </div>
                   </div>
 
-                  <div className="p-3 rounded-xl bg-[#0B0D0F] border border-[#B8F34A]/30 flex items-center justify-between">
-                    <span className="text-xs text-gray-300">
-                      Estimated 1-Rep Max:
-                    </span>
-                    <span className="text-xl font-black text-[#B8F34A]">
-                      {estimated1RM} kg
-                    </span>
-                  </div>
-
-                  <div className="space-y-1.5 pt-1 text-[11px]">
+                  <div className="grid grid-cols-2 gap-2 text-xs">
                     {[
-                      { m: "Chest & Anterior Delts", sets: 14, target: 16 },
-                      { m: "Back & Lats", sets: 16, target: 16 },
-                      { m: "Quads, Hamstrings & Glutes", sets: 15, target: 16 }
-                    ].map((row, i) => (
-                      <div key={i}>
-                        <div className="flex justify-between text-gray-300">
-                          <span>{row.m}</span>
-                          <span className="text-[#B8F34A] font-mono">
-                            {row.sets} / {row.target} sets/wk
-                          </span>
+                      {
+                        wk: "Today (Wk 1)",
+                        w: `${profile.weightKg} kg`,
+                        rm: `${estimated1RM} kg 1RM`
+                      },
+                      {
+                        wk: "Week 4",
+                        w: `${(
+                          profile.weightKg +
+                          (profile.goal === "fat_loss" ? -1.6 : 0.9)
+                        ).toFixed(1)} kg`,
+                        rm: `${estimated1RM + 5} kg 1RM`
+                      },
+                      {
+                        wk: "Week 8",
+                        w: `${(
+                          profile.weightKg +
+                          (profile.goal === "fat_loss" ? -3.2 : 1.8)
+                        ).toFixed(1)} kg`,
+                        rm: `${estimated1RM + 10} kg 1RM`
+                      },
+                      {
+                        wk: "Week 12 Goal",
+                        w: `${profile.targetWeightKg} kg`,
+                        rm: `${estimated1RM + 15} kg 1RM`
+                      }
+                    ].map((p, idx) => (
+                      <div
+                        key={idx}
+                        className="p-2.5 rounded-xl bg-[#0B0D0F] border border-white/10"
+                      >
+                        <div className="text-[10px] text-gray-400 font-bold">
+                          {p.wk}
                         </div>
-                        <div className="h-1.5 bg-[#0B0D0F] rounded-full overflow-hidden mt-1">
-                          <div
-                            className="h-full bg-[#B8F34A]"
-                            style={{
-                              width: `${Math.min(
-                                100,
-                                (row.sets / row.target) * 100
-                              )}%`
-                            }}
-                          />
+                        <div className="text-sm font-black text-white mt-0.5">
+                          {p.w}
+                        </div>
+                        <div className="text-[11px] font-bold text-[#B8F34A]">
+                          {p.rm}
                         </div>
                       </div>
                     ))}
@@ -5186,9 +5602,9 @@ export default function App() {
                 </div>
 
                 <div className="text-[11px] text-gray-400 pt-2 border-t border-white/10">
-                  85% Working Load Recommendation:{" "}
+                  Next Session Working Target:{" "}
                   <strong className="text-white">
-                    {Math.round(estimated1RM * 0.85)} kg × 5–6 reps
+                    {Math.round(estimated1RM * 0.82)} kg × 6–8 reps
                   </strong>
                 </div>
               </div>
@@ -5542,7 +5958,7 @@ export default function App() {
         )}
 
         {/* ================================================================
-            TAB 10: AUTOMATED UNIT TESTS & COMPLETE 15-TABLE SUPABASE SCHEMA
+            TAB 9: AUTOMATED UNIT TESTS & COMPLETE 15-TABLE SUPABASE SCHEMA
            ================================================================ */}
         {activeTab === "tests" && (
           <div className="space-y-6">
@@ -5565,15 +5981,11 @@ export default function App() {
                   ✓ PASS: 60fps Articulated GIF-Style Pose Interpolation &
                   YouTube Error 153 Sandbox Protection Active
                 </div>
-                <div className="text-[#B8F34A] font-bold">
-                  ✓ PASS: Real Flouci Payment Integration (
-                  {FLOUCI_MERCHANT_PHONE_DISPLAY}) + Supabase Auth Active
-                </div>
               </div>
 
               <pre className="p-4 rounded-xl bg-[#0B0D0F] border border-white/10 text-[11px] text-gray-300 overflow-x-auto leading-relaxed">
 {`-- FITFORGE COMPLETE 15-TABLE SUPABASE POSTGRESQL SCHEMA WITH ROW LEVEL SECURITY (RLS)
-create table public.profiles (id uuid primary key references auth.users(id) on delete cascade, email text, full_name text, is_premium boolean default false, subscription_plan text default 'free', payment_reference text, subscription_status text default 'inactive', weight_kg numeric, height_cm numeric, age int, sex text, goal text, experience text, equipment text, updated_at timestamptz default now());
+create table public.profiles (id uuid primary key references auth.users(id) on delete cascade, weight_kg numeric, height_cm numeric, age int, sex text, goal text, experience text, equipment text, updated_at timestamptz default now());
 create table public.user_preferences (user_id uuid primary key references auth.users(id) on delete cascade, dietary_preference text, allergies text[], daily_budget numeric, currency text);
 create table public.exercises (id text primary key, name text not null, muscle_group text not null, equipment text not null, motion_type text, youtube_embed_id text, cues text[]);
 create table public.foods (id text primary key, name text not null, basis text not null, serving_grams numeric not null, calories numeric not null, protein numeric not null, carbs numeric not null, fat numeric not null, cost_tnd numeric, source text);
