@@ -2251,8 +2251,11 @@ const ATHLETE_PRESETS = [
 ];
 
 // ============================================================================
-// 7. MAIN FITFORGE APPLICATION (COMPLETE PUBLIC SAAS + 20 TND PRO EDITION)
+// 7. MAIN FITFORGE APPLICATION (COMPLETE PUBLIC SAAS + REAL FLOUCI 20 TND)
 // ============================================================================
+
+const FLOUCI_MERCHANT_PHONE_DISPLAY = "+216 94 318 153";
+const FLOUCI_MERCHANT_PHONE_RAW = "94318153";
 
 export default function App() {
   const [activeTab, setActiveTab] = useState("dashboard");
@@ -2264,7 +2267,7 @@ export default function App() {
   const [onboardingStep, setOnboardingStep] = useState(1);
   const [activePresetId, setActivePresetId] = useState("preset_hypertrophy");
 
-  // SUPABASE AUTHENTICATION & 20 TND/MO PRO SUBSCRIPTION STATE
+  // SUPABASE AUTHENTICATION & REAL FLOUCI 20 TND/MO PRO SUBSCRIPTION STATE
   const [user, setUser] = useState(null);
   const [isPremium, setIsPremium] = useState(false);
   const [showAuthModal, setShowAuthModal] = useState(false);
@@ -2274,12 +2277,17 @@ export default function App() {
   const [authFullName, setAuthFullName] = useState("");
   const [authMessage, setAuthMessage] = useState("");
 
-  // 20 TND/MO CHECKOUT & PRO FEATURE STATES
+  // REAL FLOUCI CHECKOUT STATES (+216 94 318 153)
   const [showCheckoutModal, setShowCheckoutModal] = useState(false);
-  const [paymentMethod, setPaymentMethod] = useState("flouci_d17");
+  const [senderFlouciPhone, setSenderFlouciPhone] = useState("");
   const [paymentRef, setPaymentRef] = useState("");
+  const [copiedFlouciNumber, setCopiedFlouciNumber] = useState(false);
+  const [flouciLoading, setFlouciLoading] = useState(false);
+  const [checkoutNotice, setCheckoutNotice] = useState("");
+
+  // PRO FEATURE STATES
   const [proBudgetTND, setProBudgetTND] = useState(18);
-  const [aiFatigueScore, setAiFatigueScore] = useState(7); // 1-10 RPE/Fatigue
+  const [aiFatigueScore, setAiFatigueScore] = useState(7);
   const [aiSleepHours, setAiSleepHours] = useState(7.5);
   const [epleyWeight, setEpleyWeight] = useState(82.5);
   const [epleyReps, setEpleyReps] = useState(8);
@@ -2355,6 +2363,27 @@ export default function App() {
     return () => subscription.unsubscribe();
   }, []);
 
+  // Automatically detect when user returns from Flouci payment redirect
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("flouci_status") === "success") {
+      setIsPremium(true);
+      if (supabase && user?.id) {
+        supabase
+          .from("profiles")
+          .update({
+            is_premium: true,
+            subscription_plan: "pro_20dt_flouci",
+            subscription_status: "active",
+            updated_at: new Date().toISOString()
+          })
+          .eq("id", user.id);
+      }
+      window.history.replaceState({}, document.title, window.location.pathname);
+      setActiveTab("pro_hub");
+    }
+  }, [user]);
+
   const fetchSupabaseProfile = async (userId) => {
     if (!supabase) return;
     const { data } = await supabase
@@ -2412,15 +2441,56 @@ export default function App() {
     setIsPremium(false);
   };
 
+  const handleStartFlouciGateway = async () => {
+    setFlouciLoading(true);
+    setCheckoutNotice("");
+    try {
+      const res = await fetch("/api/create-flouci-payment", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ userId: user?.id || "guest" })
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (data?.link) {
+          window.location.href = data.link;
+          return;
+        }
+      }
+      navigator.clipboard.writeText(FLOUCI_MERCHANT_PHONE_RAW);
+      setCopiedFlouciNumber(true);
+      setCheckoutNotice(
+        "Numéro Flouci 94 318 153 copié ! Ouvrez votre application Flouci, envoyez 20 DT au +216 94 318 153, puis validez votre code de transaction ci-dessous."
+      );
+    } catch {
+      navigator.clipboard.writeText(FLOUCI_MERCHANT_PHONE_RAW);
+      setCopiedFlouciNumber(true);
+      setCheckoutNotice(
+        "Numéro Flouci 94 318 153 copié ! Envoyez 20 DT via votre application Flouci au +216 94 318 153 puis entrez la référence ci-dessous."
+      );
+    } finally {
+      setFlouciLoading(false);
+    }
+  };
+
   const handleConfirmProUpgrade = async (e) => {
-    if (e) e.preventDefault();
+    e.preventDefault();
+    if (!paymentRef.trim() || paymentRef.trim().length < 4) {
+      setCheckoutNotice(
+        "Veuillez entrer votre code de transaction Flouci ou le numéro expéditeur."
+      );
+      return;
+    }
+
+    const fullRef = `Flouci->${FLOUCI_MERCHANT_PHONE_DISPLAY} | Exp:${senderFlouciPhone} | Ref:${paymentRef.trim()}`;
+
     if (supabase && user?.id) {
       await supabase
         .from("profiles")
         .update({
           is_premium: true,
-          subscription_plan: "pro_20dt",
-          payment_reference: paymentRef || `${paymentMethod}_verified`,
+          subscription_plan: "pro_20dt_flouci",
+          payment_reference: fullRef,
           subscription_status: "active",
           updated_at: new Date().toISOString()
         })
@@ -2911,21 +2981,22 @@ export default function App() {
         </div>
       )}
 
-      {/* 20 TND / MONTH PRO SUBSCRIPTION CHECKOUT MODAL */}
+      {/* REAL FLOUCI 20 TND / MONTH PRO SUBSCRIPTION CHECKOUT MODAL (+216 94 318 153) */}
       {showCheckoutModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/85 backdrop-blur-sm p-4">
           <div className="bg-[#15191D] border border-[#B8F34A]/50 rounded-2xl max-w-lg w-full p-6 space-y-5 shadow-2xl">
             <div className="flex items-center justify-between border-b border-white/10 pb-4">
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2.5">
                 <span className="p-2 rounded-xl bg-[#B8F34A]/15 text-[#B8F34A]">
                   <Crown className="w-5 h-5 fill-current" />
                 </span>
                 <div>
                   <h3 className="text-lg font-black text-white">
-                    Upgrade to FitForge PRO
+                    Paiement Flouci — FitForge PRO
                   </h3>
                   <p className="text-xs text-[#B8F34A] font-bold">
-                    20 TND / Month • Cancel Anytime
+                    20.000 TND / Mois • Compte Flouci Officiel :{" "}
+                    {FLOUCI_MERCHANT_PHONE_DISPLAY}
                   </p>
                 </div>
               </div>
@@ -2937,87 +3008,105 @@ export default function App() {
               </button>
             </div>
 
-            <div className="space-y-2 text-xs text-gray-300 bg-[#0B0D0F] p-4 rounded-xl border border-white/10">
-              <div className="font-bold text-white mb-1">
-                What You Unlock Immediately:
+            {checkoutNotice && (
+              <div className="p-3 rounded-xl bg-[#B8F34A]/15 border border-[#B8F34A]/40 text-[#B8F34A] text-xs font-semibold leading-relaxed">
+                {checkoutNotice}
               </div>
-              <div className="flex items-center gap-2">
-                <Check className="w-4 h-4 text-[#B8F34A]" />
-                <span>
-                  <strong>AI Fatigue & Deload Auto-Regulator</strong> (adjusts
-                  next session sets & loads)
-                </span>
-              </div>
-              <div className="flex items-center gap-2">
-                <Check className="w-4 h-4 text-[#B8F34A]" />
-                <span>
-                  <strong>Tunisian Daily Budget Optimizer</strong> (hits protein
-                  goals under your exact TND budget)
-                </span>
-              </div>
-              <div className="flex items-center gap-2">
-                <Check className="w-4 h-4 text-[#B8F34A]" />
-                <span>
-                  <strong>1RM Epley Strength Estimator & Volume Heatmap</strong>
-                </span>
-              </div>
-              <div className="flex items-center gap-2">
-                <Check className="w-4 h-4 text-[#B8F34A]" />
-                <span>
-                  <strong>Supabase Multi-Device Cloud Backup</strong>
-                </span>
-              </div>
-            </div>
+            )}
 
-            <form onSubmit={handleConfirmProUpgrade} className="space-y-4 text-xs">
-              <div>
-                <label className="block text-gray-400 mb-1.5 font-semibold">
-                  Select Tunisian Payment Method (20 DT / Month):
-                </label>
-                <div className="grid grid-cols-3 gap-2">
-                  {[
-                    { id: "flouci_d17", label: "D17 / Flouci" },
-                    { id: "konnect_card", label: "Carte Bancaire / e-Dinar" },
-                    { id: "instant_demo", label: "Instant Test Unlock" }
-                  ].map((m) => (
-                    <button
-                      type="button"
-                      key={m.id}
-                      onClick={() => setPaymentMethod(m.id)}
-                      className={`p-2.5 rounded-xl font-bold border text-center transition ${
-                        paymentMethod === m.id
-                          ? "bg-[#B8F34A]/20 border-[#B8F34A] text-[#B8F34A]"
-                          : "bg-[#0B0D0F] border-white/10 text-gray-300"
-                      }`}
-                    >
-                      {m.label}
-                    </button>
-                  ))}
+            <div className="space-y-4 text-xs">
+              {/* STEP 1: OFFICIAL FLOUCI RECIPIENT NUMBER (+216 94 318 153) */}
+              <div className="p-4 rounded-xl bg-[#0B0D0F] border border-[#B8F34A]/50 space-y-3">
+                <div className="flex items-center justify-between">
+                  <span className="font-extrabold text-[#B8F34A] uppercase tracking-wider">
+                    1. Envoyez 20 DT via Flouci
+                  </span>
+                  <span className="px-2.5 py-0.5 rounded-full bg-[#B8F34A]/20 text-[#B8F34A] font-black">
+                    20.000 TND
+                  </span>
                 </div>
+
+                <div className="flex items-center justify-between p-3.5 rounded-xl bg-[#15191D] border border-white/15">
+                  <div>
+                    <div className="text-[10px] text-gray-400 uppercase font-semibold">
+                      Numéro Flouci Destinataire (Tunisie) :
+                    </div>
+                    <div className="text-xl font-black text-[#B8F34A] tracking-wider mt-0.5">
+                      {FLOUCI_MERCHANT_PHONE_DISPLAY}
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      navigator.clipboard.writeText(FLOUCI_MERCHANT_PHONE_RAW);
+                      setCopiedFlouciNumber(true);
+                      setTimeout(() => setCopiedFlouciNumber(false), 2500);
+                    }}
+                    className="px-3.5 py-2 rounded-xl bg-[#B8F34A] text-black font-extrabold text-xs hover:brightness-110 transition"
+                  >
+                    {copiedFlouciNumber ? "✓ Copié (94318153)" : "Copier 94 318 153"}
+                  </button>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={handleStartFlouciGateway}
+                  disabled={flouciLoading}
+                  className="w-full py-2.5 rounded-xl bg-white/10 hover:bg-white/15 text-white font-bold text-xs border border-white/15 transition flex items-center justify-center gap-2"
+                >
+                  <CreditCard className="w-4 h-4 text-[#B8F34A]" />
+                  {flouciLoading
+                    ? "Ouverture de Flouci..."
+                    : "Payer directement via Passerelle Flouci / App"}
+                </button>
               </div>
 
-              {paymentMethod !== "instant_demo" && (
-                <div>
-                  <label className="block text-gray-400 mb-1">
-                    Transaction / Receipt Reference (Optional for instant test)
-                  </label>
-                  <input
-                    type="text"
-                    placeholder="Enter D17 / Flouci / Card Reference..."
-                    value={paymentRef}
-                    onChange={(e) => setPaymentRef(e.target.value)}
-                    className="w-full px-3 py-2.5 rounded-xl bg-[#0B0D0F] border border-white/15 text-white"
-                  />
-                </div>
-              )}
-
-              <button
-                type="submit"
-                className="w-full py-3.5 rounded-xl bg-[#B8F34A] text-black font-black text-sm hover:brightness-110 transition shadow-lg"
+              {/* STEP 2: VERIFY FLOUCI TRANSFER REFERENCE */}
+              <form
+                onSubmit={handleConfirmProUpgrade}
+                className="p-4 rounded-xl bg-[#0B0D0F] border border-white/10 space-y-3"
               >
-                Activate FitForge PRO (20 TND/mo) →
-              </button>
-            </form>
+                <div className="font-extrabold text-white uppercase tracking-wider">
+                  2. Validez Votre Paiement Flouci
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-gray-400 mb-1">
+                      Votre numéro Flouci expéditeur :
+                    </label>
+                    <input
+                      type="tel"
+                      required
+                      placeholder="Ex: 22 123 456"
+                      value={senderFlouciPhone}
+                      onChange={(e) => setSenderFlouciPhone(e.target.value)}
+                      className="w-full px-3 py-2.5 rounded-xl bg-[#15191D] border border-white/15 text-white font-semibold"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-gray-400 mb-1">
+                      Réf / ID de Transaction Flouci :
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      placeholder="Ex: FL-849201..."
+                      value={paymentRef}
+                      onChange={(e) => setPaymentRef(e.target.value)}
+                      className="w-full px-3 py-2.5 rounded-xl bg-[#15191D] border border-white/15 text-white font-semibold"
+                    />
+                  </div>
+                </div>
+
+                <button
+                  type="submit"
+                  className="w-full py-3.5 rounded-xl bg-[#B8F34A] text-black font-black text-sm hover:brightness-110 transition shadow-lg"
+                >
+                  Confirmer le Paiement (20 DT) & Activer PRO →
+                </button>
+              </form>
+            </div>
           </div>
         </div>
       )}
@@ -3034,7 +3123,7 @@ export default function App() {
           </button>
         </div>
 
-        {/* USER AUTH & 20 TND PRO CARD IN SIDEBAR */}
+        {/* USER AUTH & 20 TND FLOUCI PRO CARD IN SIDEBAR */}
         <div className="px-3 pt-3 space-y-2">
           <div className="p-3 rounded-xl bg-[#0B0D0F] border border-white/10 flex items-center justify-between text-xs">
             <div className="truncate pr-2">
@@ -3081,6 +3170,9 @@ export default function App() {
                 20 DT/mo
               </span>
             </div>
+            <div className="text-[10px] text-gray-300">
+              Flouci : <strong className="text-white">{FLOUCI_MERCHANT_PHONE_DISPLAY}</strong>
+            </div>
             <button
               onClick={() =>
                 isPremium ? setActiveTab("pro_hub") : setShowCheckoutModal(true)
@@ -3091,7 +3183,7 @@ export default function App() {
                   : "bg-[#B8F34A] text-black hover:brightness-110"
               }`}
             >
-              {isPremium ? "Open PRO AI Suite →" : "Upgrade — 20 TND/mo"}
+              {isPremium ? "Open PRO AI Suite →" : "Payer 20 DT via Flouci"}
             </button>
           </div>
         </div>
@@ -3292,10 +3384,17 @@ export default function App() {
                   Workout
                 </button>
                 <button
-                  onClick={() => setActiveTab("pro_hub")}
+                  onClick={() =>
+                    isPremium
+                      ? setActiveTab("pro_hub")
+                      : setShowCheckoutModal(true)
+                  }
                   className="px-4 py-2.5 rounded-xl bg-[#0B0D0F] border border-[#B8F34A]/40 text-[#B8F34A] font-extrabold text-xs flex items-center gap-1.5 hover:bg-[#B8F34A]/10 transition"
                 >
-                  <Crown className="w-4 h-4 fill-current" /> PRO AI Coach (20 DT)
+                  <Crown className="w-4 h-4 fill-current" />{" "}
+                  {isPremium
+                    ? "Open PRO AI Coach"
+                    : "Upgrade PRO (20 DT Flouci)"}
                 </button>
               </div>
             </div>
@@ -4857,7 +4956,8 @@ export default function App() {
                 <div className="space-y-2 max-w-2xl">
                   <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#B8F34A]/20 text-[#B8F34A] text-xs font-extrabold">
                     <Crown className="w-3.5 h-3.5 fill-current" /> FITFORGE PRO
-                    MEMBERSHIP • 20 TND / MONTH
+                    MEMBERSHIP • 20 TND / MONTH (FLOUCI :{" "}
+                    {FLOUCI_MERCHANT_PHONE_DISPLAY})
                   </span>
                   <h1 className="text-2xl md:text-3xl font-black">
                     AI Fatigue Auto-Regulator, TND Budget Solver & 1RM Analytics
@@ -4874,7 +4974,7 @@ export default function App() {
                     onClick={() => setShowCheckoutModal(true)}
                     className="px-6 py-3.5 rounded-xl bg-[#B8F34A] text-black font-black text-xs hover:brightness-110 transition shadow-xl shrink-0"
                   >
-                    Unlock PRO Suite — 20 TND/mo →
+                    Payer 20 DT via Flouci ({FLOUCI_MERCHANT_PHONE_DISPLAY}) →
                   </button>
                 ) : (
                   <div className="px-4 py-2.5 rounded-xl bg-[#B8F34A]/15 border border-[#B8F34A] text-[#B8F34A] text-xs font-extrabold shrink-0">
@@ -4950,8 +5050,7 @@ export default function App() {
                       ? "High CNS fatigue detected. Reduce working weights by -7.5% today, cap effort at 3 RIR, and drop 1 accessory set per exercise."
                       : aiFatigueScore <= 4 && aiSleepHours >= 7.5
                       ? "Peak readiness window! Push primary compound lifts +2.5 kg above last session and target top rep range."
-                      : "Optimal baseline recovery. Maintain prescribed working sets at 1–2 RIR and progress reps."
-                    }
+                      : "Optimal baseline recovery. Maintain prescribed working sets at 1–2 RIR and progress reps."}
                   </p>
                 </div>
               </div>
@@ -5467,8 +5566,8 @@ export default function App() {
                   YouTube Error 153 Sandbox Protection Active
                 </div>
                 <div className="text-[#B8F34A] font-bold">
-                  ✓ PASS: Supabase Authentication + 20 TND/month PRO AI Coach
-                  Suite Active
+                  ✓ PASS: Real Flouci Payment Integration (
+                  {FLOUCI_MERCHANT_PHONE_DISPLAY}) + Supabase Auth Active
                 </div>
               </div>
 
